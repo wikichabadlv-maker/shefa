@@ -2,7 +2,8 @@
 // Uses the service key, which lives only in GitHub Secrets, never in the app.
 
 export function makeStore(env = process.env, fetchImpl = fetch) {
-  const url = (env.SUPABASE_URL ?? '').replace(/\/+$/, '');
+  // Accept the address with or without the "/rest/v1" ending that the dashboard shows.
+  const url = (env.SUPABASE_URL ?? '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
   const key = env.SUPABASE_SERVICE_KEY ?? '';
   if (!url || !key) return null;
 
