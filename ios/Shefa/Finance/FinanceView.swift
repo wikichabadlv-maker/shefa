@@ -14,6 +14,11 @@ struct FinanceView: View {
     @State private var section: FinanceSection = .transactions
     @State private var query = ""
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
+    @Query private var budgetLines: [BudgetLine]
+
+    private var summary: MonthSummary {
+        Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines))
+    }
 
     var body: some View {
         NavigationStack {
@@ -28,14 +33,13 @@ struct FinanceView: View {
 
                     switch section {
                     case .overview:
-                        MonthHeroCard(month: Ledger.summary(entries))
+                        MonthHeroCard(month: summary)
                     case .transactions:
                         TransactionsList(entries: entries, query: query)
                     case .budget:
-                        ContentUnavailableView("תקציב", systemImage: "chart.pie.fill",
-                                               description: Text("תקציב לפי קטגוריות נבנה בשלב הבא."))
+                        BudgetList(entries: entries)
                     case .savings:
-                        SavingsList(month: Ledger.summary(entries), goals: SampleData.goals)
+                        SavingsList(month: summary)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -239,44 +243,6 @@ struct CategoryPicker: View {
         }
         .environment(\.layoutDirection, .rightToLeft)
         .presentationDetents([.medium, .large])
-    }
-}
-
-struct SavingsList: View {
-    let month: MonthSummary
-    let goals: [SavingsGoal]
-
-    var body: some View {
-        MaaserCard(month: month)
-
-        SectionHeader(title: "יעדי חיסכון")
-
-        VStack(spacing: 0) {
-            ForEach(Array(goals.enumerated()), id: \.element.id) { index, goal in
-                HStack(spacing: 12) {
-                    ArtworkIcon(artwork: goal.artwork, symbol: goal.symbol)
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack {
-                            Text(goal.title).font(.system(size: 16, weight: .bold))
-                            Spacer()
-                            Text(goal.share, format: .percent.precision(.fractionLength(0)))
-                                .font(.system(size: 14, weight: .bold))
-                                .monospacedDigit()
-                        }
-                        ProgressView(value: goal.share).tint(goal.artwork.start)
-                        Text("\(Money.text(goal.saved)) מתוך \(Money.text(goal.target))")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 12)
-                if index < goals.count - 1 {
-                    Divider().padding(.leading, 54)
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .cardSurface()
     }
 }
 

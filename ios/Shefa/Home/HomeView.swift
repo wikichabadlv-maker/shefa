@@ -5,7 +5,10 @@ struct HomeView: View {
     @Binding var selection: AppTab
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
 
-    private var month: MonthSummary { Ledger.summary(entries) }
+    @Query private var budgetLines: [BudgetLine]
+    @Query(sort: \SavingsGoal.createdAt) private var goals: [SavingsGoal]
+
+    private var month: MonthSummary { Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines)) }
     private var question: LedgerEntry? { entries.first { $0.needsAnswer } }
     private var recent: [LedgerEntry] { Array(entries.prefix(3)) }
 
@@ -31,7 +34,7 @@ struct HomeView: View {
                         SectionHeader(title: "יעדי חיסכון") { selection = .finance }
                         ScrollView(.horizontal) {
                             HStack(spacing: 12) {
-                                ForEach(SampleData.goals) { goal in
+                                ForEach(goals) { goal in
                                     GoalTile(goal: goal)
                                 }
                             }

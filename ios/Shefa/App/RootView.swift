@@ -37,6 +37,7 @@ struct RootView: View {
         }
         .task {
             Ledger.seedIfNeeded(in: context)
+            Ledger.seedPlanningIfNeeded(in: context)
         }
     }
 }
@@ -44,5 +45,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(\.layoutDirection, .rightToLeft)
-        .modelContainer(for: [LedgerEntry.self, MerchantRule.self], inMemory: true)
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self], inMemory: true)
 }

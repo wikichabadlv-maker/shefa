@@ -6,32 +6,9 @@ struct ScheduleTask {
     let minutesLeft: Int
 }
 
-struct SavingsGoal: Identifiable {
-    let id = UUID()
-    let title: String
-    let saved: Decimal
-    let target: Decimal
-    let symbol: String
-    let artwork: Artwork
-
-    var share: Double {
-        guard target > 0 else { return 0 }
-        return NSDecimalNumber(decimal: saved / target).doubleValue
-    }
-}
-
 /// Example data shown until the bank sync is connected to the app.
 enum SampleData {
     static let currentTask = ScheduleTask(title: "חברותא · גמרא", symbol: "book.fill", minutesLeft: 32)
-
-    static let goals: [SavingsGoal] = [
-        SavingsGoal(title: "דירה משלנו", saved: 48_000, target: 200_000,
-                    symbol: "house.fill", artwork: Theme.blue),
-        SavingsGoal(title: "בר מצווה של מענדי", saved: 12_300, target: 30_000,
-                    symbol: "star.fill", artwork: Theme.violet),
-        SavingsGoal(title: "חופשת קיץ", saved: 3_100, target: 8_000,
-                    symbol: "sun.max.fill", artwork: Theme.pink),
-    ]
 
     static func entries(now: Date = .now) -> [LedgerEntry] {
         func make(_ index: Int, hoursAgo: Double, _ title: String, _ amount: String,
