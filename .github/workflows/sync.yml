@@ -1,0 +1,53 @@
+name: סנכרון בנקים
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: כמה ימים אחורה למשוך
+        default: "45"
+  # The schedule is turned on once the first manual run succeeds:
+  # schedule:
+  #   - cron: "15 3,7,11,15,19 * * *"
+
+concurrency:
+  group: bank-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: sync/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: משיכת תנועות
+        run: npm run sync
+        env:
+          TZ: Asia/Jerusalem
+          SYNC_DAYS: ${{ github.event.inputs.days || '45' }}
+          DISCOUNT_ID: ${{ secrets.DISCOUNT_ID }}
+          DISCOUNT_PASSWORD: ${{ secrets.DISCOUNT_PASSWORD }}
+          DISCOUNT_NUM: ${{ secrets.DISCOUNT_NUM }}
+          MAX_USERNAME: ${{ secrets.MAX_USERNAME }}
+          MAX_PASSWORD: ${{ secrets.MAX_PASSWORD }}
+          MAX_2_USERNAME: ${{ secrets.MAX_2_USERNAME }}
+          MAX_2_PASSWORD: ${{ secrets.MAX_2_PASSWORD }}
+          CAL_USERNAME: ${{ secrets.CAL_USERNAME }}
+          CAL_PASSWORD: ${{ secrets.CAL_PASSWORD }}
+          CAL_2_USERNAME: ${{ secrets.CAL_2_USERNAME }}
+          CAL_2_PASSWORD: ${{ secrets.CAL_2_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}

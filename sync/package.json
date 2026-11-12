@@ -1,0 +1,13 @@
+{
+  "name": "shefa-sync",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.22.2" },
+  "scripts": {
+    "sync": "node src/run.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "israeli-bank-scrapers": "6.13.0"
+  }
+}
