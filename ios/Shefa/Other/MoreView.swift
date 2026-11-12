@@ -24,23 +24,36 @@ struct MoreView: View {
         query.isEmpty ? areas : areas.filter { $0.title.contains(query) }
     }
 
+    private func tile(_ area: AppArea) -> some View {
+        VStack(alignment: .leading) {
+            Image(systemName: area.symbol)
+                .font(.system(size: 24, weight: .semibold))
+            Spacer()
+            Text(area.title)
+                .font(.system(size: 17, weight: .heavy))
+        }
+        .foregroundStyle(.white)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
+        .background(area.artwork.gradient,
+                    in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
                     ForEach(shown) { area in
-                        VStack(alignment: .leading) {
-                            Image(systemName: area.symbol)
-                                .font(.system(size: 24, weight: .semibold))
-                            Spacer()
-                            Text(area.title)
-                                .font(.system(size: 17, weight: .heavy))
+                        if area.symbol == "gearshape.fill" {
+                            NavigationLink {
+                                SettingsView()
+                            } label: {
+                                tile(area)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            tile(area)
                         }
-                        .foregroundStyle(.white)
-                        .padding(14)
-                        .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
-                        .background(area.artwork.gradient,
-                                    in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     }
                 }
                 .padding(16)

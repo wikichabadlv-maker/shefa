@@ -78,6 +78,7 @@ enum Ledger {
     static func answer(_ entry: LedgerEntry, with category: SpendCategory, in context: ModelContext) {
         let key = merchantKey(entry.title)
         entry.categoryID = category.id
+        var answered = [entry.id]
 
         let rules = (try? context.fetch(FetchDescriptor<MerchantRule>())) ?? []
         if let rule = rules.first(where: { $0.merchant == key }) {
@@ -89,8 +90,17 @@ enum Ledger {
         let others = (try? context.fetch(FetchDescriptor<LedgerEntry>())) ?? []
         for other in others where other.categoryID == nil && other.amount < 0 && merchantKey(other.title) == key {
             other.categoryID = category.id
+            answered.append(other.id)
         }
         try? context.save()
+
+        let categoryID = category.id
+        let ids = answered
+        Task { @MainActor in
+            for id in ids {
+                await Backend.shared.saveAnswer(entryID: id, categoryID: categoryID)
+            }
+        }
     }
 
     /// Fills the journal with example lines the first time the app opens,

@@ -38,6 +38,7 @@ struct RootView: View {
         .task {
             Ledger.seedIfNeeded(in: context)
             Ledger.seedPlanningIfNeeded(in: context)
+            await Backend.shared.sync(into: context)
         }
     }
 }

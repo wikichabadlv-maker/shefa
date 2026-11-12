@@ -3,6 +3,7 @@ import SwiftUI
 
 struct HomeView: View {
     @Binding var selection: AppTab
+    @Environment(\.modelContext) private var context
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
 
     @Query private var budgetLines: [BudgetLine]
@@ -62,6 +63,7 @@ struct HomeView: View {
                 .padding(.bottom, 24)
             }
             .background(Theme.ground)
+            .refreshable { await Backend.shared.sync(into: context) }
             .navigationTitle("בית")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
