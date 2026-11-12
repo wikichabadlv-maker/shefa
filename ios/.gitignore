@@ -1,0 +1,4 @@
+*.xcodeproj
+Shefa/Info.plist
+build/
+DerivedData/

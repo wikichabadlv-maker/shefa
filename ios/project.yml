@@ -1,0 +1,33 @@
+name: Shefa
+options:
+  bundleIdPrefix: app.shefa
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: he
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Shefa:
+    type: application
+    platform: iOS
+    sources:
+      - Shefa
+    info:
+      path: Shefa/Info.plist
+      properties:
+        CFBundleDisplayName: שפע
+        CFBundleDevelopmentRegion: he
+        CFBundleLocalizations: [he]
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.shefa.ios
+        TARGETED_DEVICE_FAMILY: "1"
