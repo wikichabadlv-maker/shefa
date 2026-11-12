@@ -6,39 +6,6 @@ struct ScheduleTask {
     let minutesLeft: Int
 }
 
-struct MonthSummary {
-    let budget: Decimal
-    let remaining: Decimal
-    let daysLeft: Int
-    let income: Decimal
-    let saved: Decimal
-    let maaserGiven: Decimal
-    let maaserDue: Decimal
-
-    var spentShare: Double {
-        guard budget > 0 else { return 0 }
-        return NSDecimalNumber(decimal: (budget - remaining) / budget).doubleValue
-    }
-}
-
-struct Transaction: Identifiable {
-    let id = UUID()
-    let title: String
-    let detail: String
-    let amount: Decimal
-    let symbol: String
-    let artwork: Artwork
-    var needsAnswer = false
-}
-
-struct TransactionDay: Identifiable {
-    let id = UUID()
-    let title: String
-    let items: [Transaction]
-
-    var total: Decimal { items.reduce(0) { $0 + $1.amount } }
-}
-
 struct SavingsGoal: Identifiable {
     let id = UUID()
     let title: String
@@ -57,36 +24,6 @@ struct SavingsGoal: Identifiable {
 enum SampleData {
     static let currentTask = ScheduleTask(title: "חברותא · גמרא", symbol: "book.fill", minutesLeft: 32)
 
-    static let month = MonthSummary(
-        budget: 14_500, remaining: 9_080, daysLeft: 18,
-        income: 16_900, saved: 2_000, maaserGiven: 1_240, maaserDue: 1_690
-    )
-
-    static let question = Transaction(
-        title: "שופרסל דיל", detail: "אתמול · כאל", amount: Decimal(string: "-612.40")!,
-        symbol: "cart.fill", artwork: Theme.pink, needsAnswer: true
-    )
-
-    static let days: [TransactionDay] = [
-        TransactionDay(title: "היום · חמישי", items: [
-            Transaction(title: "בית חב״ד השכונתי", detail: "מעשר · הוראת קבע · מקס",
-                        amount: -180, symbol: "heart.fill", artwork: Theme.amber),
-            Transaction(title: "פז · תדלוק", detail: "תחבורה · Apple Pay",
-                        amount: Decimal(string: "-284.60")!, symbol: "fuelpump.fill", artwork: Theme.blue),
-            Transaction(title: "משכורת", detail: "הכנסות · דיסקונט",
-                        amount: 9_850, symbol: "arrow.up", artwork: Theme.green),
-        ]),
-        TransactionDay(title: "אתמול · רביעי", items: [
-            Transaction(title: "רמי לוי שיווק השקמה", detail: "מזון ומכולת · כאל · קבלה",
-                        amount: Decimal(string: "-421.90")!, symbol: "cart.fill", artwork: Theme.pink),
-            Transaction(title: "שופרסל דיל", detail: "לבירור · כאל",
-                        amount: Decimal(string: "-612.40")!, symbol: "questionmark", artwork: Theme.amber,
-                        needsAnswer: true),
-            Transaction(title: "חברת החשמל", detail: "חשבונות הבית · הוראת קבע",
-                        amount: -150, symbol: "bolt.fill", artwork: Theme.violet),
-        ]),
-    ]
-
     static let goals: [SavingsGoal] = [
         SavingsGoal(title: "דירה משלנו", saved: 48_000, target: 200_000,
                     symbol: "house.fill", artwork: Theme.blue),
@@ -95,4 +32,29 @@ enum SampleData {
         SavingsGoal(title: "חופשת קיץ", saved: 3_100, target: 8_000,
                     symbol: "sun.max.fill", artwork: Theme.pink),
     ]
+
+    static func entries(now: Date = .now) -> [LedgerEntry] {
+        func make(_ index: Int, hoursAgo: Double, _ title: String, _ amount: String,
+                  _ source: String, method: String? = nil, category: String? = nil) -> LedgerEntry {
+            LedgerEntry(
+                id: "sample-\(index)", date: now.addingTimeInterval(-hoursAgo * 3600),
+                title: title, amount: Decimal(string: amount) ?? 0, source: source,
+                method: method, categoryID: category, isSample: true
+            )
+        }
+        return [
+            make(1, hoursAgo: 1, "בית חב״ד השכונתי", "-180", "מקס", method: "הוראת קבע", category: "maaser"),
+            make(2, hoursAgo: 3, "פז · תדלוק", "-284.60", "כאל", method: "Apple Pay", category: "transport"),
+            make(3, hoursAgo: 5, "משכורת", "9850", "דיסקונט", category: "income"),
+            make(4, hoursAgo: 26, "רמי לוי שיווק השקמה", "-421.90", "כאל", method: "קבלה", category: "food"),
+            make(5, hoursAgo: 28, "שופרסל דיל 214", "-612.40", "כאל"),
+            make(6, hoursAgo: 30, "חברת החשמל", "-150", "דיסקונט", method: "הוראת קבע", category: "home"),
+            make(7, hoursAgo: 52, "העברה בביט", "-250", "דיסקונט"),
+            make(8, hoursAgo: 54, "קופת חולים מכבי", "-96", "מקס", category: "health"),
+            make(9, hoursAgo: 76, "הפקדה לחיסכון", "-2000", "דיסקונט", method: "הוראת קבע", category: "savings"),
+            make(10, hoursAgo: 78, "שופרסל דיל 214", "-88.70", "כאל"),
+            make(11, hoursAgo: 100, "משכורת", "7050", "דיסקונט", category: "income"),
+            make(12, hoursAgo: 102, "קרן צדקה", "-360", "דיסקונט", method: "הוראת קבע", category: "maaser"),
+        ]
+    }
 }

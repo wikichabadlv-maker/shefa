@@ -1,8 +1,13 @@
+import SwiftData
 import SwiftUI
 
 struct HomeView: View {
     @Binding var selection: AppTab
-    private let month = SampleData.month
+    @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
+
+    private var month: MonthSummary { Ledger.summary(entries) }
+    private var question: LedgerEntry? { entries.first { $0.needsAnswer } }
+    private var recent: [LedgerEntry] { Array(entries.prefix(3)) }
 
     var body: some View {
         NavigationStack {
@@ -16,7 +21,11 @@ struct HomeView: View {
 
                     MonthHeroCard(month: month)
 
-                    QuestionCard(transaction: SampleData.question)
+                    if let question {
+                        QuestionCard(entry: question)
+                            .id(question.id)
+                            .transition(.opacity)
+                    }
 
                     VStack(alignment: .leading, spacing: 10) {
                         SectionHeader(title: "יעדי חיסכון") { selection = .finance }
@@ -35,10 +44,9 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionHeader(title: "תנועות אחרונות") { selection = .finance }
                         VStack(spacing: 0) {
-                            let items = SampleData.days[0].items
-                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                                TransactionRow(transaction: item)
-                                if index < items.count - 1 {
+                            ForEach(recent) { item in
+                                TransactionRow(entry: item)
+                                if item.id != recent.last?.id {
                                     Divider().padding(.leading, 54)
                                 }
                             }
@@ -151,42 +159,54 @@ struct MonthHeroCard: View {
 
 /// A purchase the app could not classify on its own and asks about.
 struct QuestionCard: View {
-    let transaction: Transaction
-    private let options = ["מזון ומכולת", "לבית", "מתנה", "אחר"]
-    @State private var answer: String?
+    let entry: LedgerEntry
+    @Environment(\.modelContext) private var context
+    @State private var isChoosing = false
+
+    private let suggestions = ["food", "home", "gift"].compactMap { SpendCategory.find($0) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 ArtworkIcon(artwork: Theme.amber, symbol: "questionmark")
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(answer == nil ? "מה קנינו ב\(transaction.title)?" : "תודה, נרשם: \(answer ?? "")")
+                    Text("מה קנינו ב\(entry.title)?")
                         .font(.system(size: 16, weight: .bold))
-                    Text("\(transaction.detail) · \(Money.text(transaction.amount, fractionDigits: 2))")
+                        .lineLimit(2)
+                    Text("\(entry.date.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))) · \(entry.source) · \(Money.text(entry.amount, fractionDigits: 2))")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
             }
-            if answer == nil {
-                HStack(spacing: 8) {
-                    ForEach(options, id: \.self) { option in
-                        Button(option) {
-                            withAnimation(.snappy) { answer = option }
-                        }
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 12)
-                        .frame(height: 34)
-                        .background(Theme.amberGround, in: Capsule())
-                        .foregroundStyle(Theme.amberInk)
-                        .buttonStyle(.plain)
+            HStack(spacing: 8) {
+                ForEach(suggestions) { category in
+                    chip(category.title) {
+                        withAnimation(.snappy) { Ledger.answer(entry, with: category, in: context) }
                     }
                 }
+                chip("אחר…") { isChoosing = true }
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
+        .sheet(isPresented: $isChoosing) {
+            CategoryPicker(entry: entry)
+        }
+    }
+
+    private func chip(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(height: 34)
+                .background(Theme.amberGround, in: Capsule())
+                .foregroundStyle(Theme.amberInk)
+        }
+        .buttonStyle(.plain)
     }
 }
 

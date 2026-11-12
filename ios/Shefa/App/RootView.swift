@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 enum AppTab: Hashable {
@@ -8,6 +9,7 @@ enum AppTab: Hashable {
 /// and the remaining areas, and the current schedule task floating above it.
 struct RootView: View {
     @State private var selection: AppTab = .home
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         TabView(selection: $selection) {
@@ -33,10 +35,14 @@ struct RootView: View {
         .tabViewBottomAccessory {
             NowTaskBar(task: SampleData.currentTask)
         }
+        .task {
+            Ledger.seedIfNeeded(in: context)
+        }
     }
 }
 
 #Preview {
     RootView()
         .environment(\.layoutDirection, .rightToLeft)
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self], inMemory: true)
 }
