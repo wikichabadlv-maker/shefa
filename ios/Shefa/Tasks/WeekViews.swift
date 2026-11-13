@@ -4,7 +4,7 @@ import SwiftUI
 /// The week's three on the tasks screen: an offer in the first days of a
 /// week that has none yet, and afterwards the three themselves, with how
 /// far the week got.
-struct WeekCard: View {
+struct WeekThreeCard: View {
     /// Every task, the done ones too.
     let items: [ListItem]
     var now: Date = .now
@@ -37,7 +37,7 @@ struct WeekCard: View {
         let line: String = WeekFocus.line(done: done, of: list.count)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                ArtworkIcon(artwork: WeekCard.artwork, symbol: isFull ? "checkmark.seal.fill" : "target")
+                ArtworkIcon(artwork: WeekThreeCard.artwork, symbol: isFull ? "checkmark.seal.fill" : "target")
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(.system(size: 16, weight: .bold))
@@ -80,7 +80,7 @@ struct WeekCard: View {
         HStack(spacing: 4) {
             ForEach(list) { task in
                 Capsule()
-                    .fill(task.isDone ? AnyShapeStyle(WeekCard.artwork.gradient) : AnyShapeStyle(Theme.chip))
+                    .fill(task.isDone ? AnyShapeStyle(WeekThreeCard.artwork.gradient) : AnyShapeStyle(Theme.chip))
                     .frame(width: 16, height: 6)
             }
         }
@@ -149,7 +149,7 @@ struct WeekCard: View {
                 router.isPickingWeek = true
             } label: {
                 HStack(spacing: 12) {
-                    ArtworkIcon(artwork: WeekCard.artwork, symbol: "target")
+                    ArtworkIcon(artwork: WeekThreeCard.artwork, symbol: "target")
                     VStack(alignment: .leading, spacing: 1) {
                         Text(title)
                             .font(.system(size: 16, weight: .bold))
@@ -267,7 +267,7 @@ struct WeekPicker: View {
         .foregroundStyle(.white)
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .livingCard(WeekCard.artwork, seed: 0.3, watermark: "target")
+        .livingCard(WeekThreeCard.artwork, seed: 0.3, watermark: "target")
     }
 
     private func slot(_ index: Int, _ task: ListItem?) -> some View {
@@ -327,7 +327,7 @@ struct WeekPicker: View {
                     .font(.system(size: 16, weight: .heavy))
                     .foregroundStyle(.white)
                     .frame(width: 48, height: 48)
-                    .background(WeekCard.artwork.gradient, in: Circle())
+                    .background(WeekThreeCard.artwork.gradient, in: Circle())
             }
             .buttonStyle(.pressable)
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)

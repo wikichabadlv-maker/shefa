@@ -50,7 +50,7 @@ enum TaskRules {
             if week.count == 1 { text = "דבר אחד נבחר לשבוע, והוא נעשה." }
             if !week.isEmpty, week.allSatisfy(\.isDone),
                Moments.shared.play("week", symbol: "target", title: "השבוע הזה כבר טוב", text: text,
-                                   artwork: WeekCard.artwork) {
+                                   artwork: WeekThreeCard.artwork) {
                 return true
             }
         }
@@ -227,7 +227,7 @@ struct TasksView: View {
 
             if !plan.isHoly {
                 // The week's three stand between the day and its lists.
-                WeekCard(items: items, now: now, toggle: { toggle($0) }, toToday: { pick($0) },
+                WeekThreeCard(items: items, now: now, toggle: { toggle($0) }, toToday: { pick($0) },
                          open: { editing = $0 })
             }
 
@@ -387,7 +387,8 @@ struct TasksView: View {
         let toToday: (() -> Void)? = isQuiet ? nil : { pick(item) }
         let offered: TaskActions? = isQuiet ? nil : actions
         return TaskRow(item: item, span: span, isOut: isOut, onToggle: { toggle(item) },
-                       onOpen: { editing = item }, onToday: toToday, actions: offered)
+                       onOpen: { editing = item }, onToday: toToday, actions: offered,
+                       isOfWeek: WeekFocus.ids().contains(item.id))
     }
 
     private var doneSection: some View {
@@ -666,6 +667,8 @@ struct TaskRow: View {
     let onOpen: () -> Void
     let onToday: (() -> Void)?
     var actions: TaskActions? = nil
+    /// One of the week's three things.
+    var isOfWeek = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -759,11 +762,14 @@ struct TaskRow: View {
             // A task with a place in today needs no "today" next to it.
             let showsDue: Bool = due != nil && !(due == "היום" && (span != nil || isOut))
             let hasMeta: Bool = span != nil || isOut || showsDue || item.minutes > 0 || item.priority > 0
-                || item.isStuck || !item.repeatRule.isEmpty || !note.isEmpty
+                || item.isStuck || !item.repeatRule.isEmpty || !note.isEmpty || isOfWeek
             if hasMeta {
                 HStack(spacing: 8) {
                     if item.priority > 0 {
                         Image(systemName: "flag.fill").foregroundStyle(Color(hex: 0xEA580C))
+                    }
+                    if isOfWeek {
+                        Image(systemName: "target").foregroundStyle(WeekThreeCard.artwork.start)
                     }
                     if let span {
                         Label(TaskRow.range(span), systemImage: "clock")

@@ -123,7 +123,7 @@ struct NowRow: View {
             result.append(Tile(id: "week", kicker: weekday == 7 ? "שבוע חדש בפתח" : "שבוע חדש",
                                title: "שלושה דברים לשבוע",
                                detail: "בוחרים שלושה, ולא יותר: מה שאם ייעשה, זה יהיה שבוע טוב.",
-                               symbol: "target", artwork: WeekCard.artwork,
+                               symbol: "target", artwork: WeekThreeCard.artwork,
                                action: { router.isPickingWeek = true }))
         }
         let canPlan: Bool = plan.offersPlanning(minute: minute, hasOpen: !open.isEmpty)

@@ -949,7 +949,7 @@ struct CloseDayFlow: View {
             if !week.isEmpty {
                 HStack(spacing: 12) {
                     ProgressRing(share: Double(weekDone) / Double(week.count), lineWidth: 5,
-                                 track: Theme.chip, fill: WeekCard.artwork.start)
+                                 track: Theme.chip, fill: WeekThreeCard.artwork.start)
                         .frame(width: 38, height: 38)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(weekTitle)
