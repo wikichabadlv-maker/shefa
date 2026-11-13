@@ -389,7 +389,10 @@ struct HomeView: View {
     private var dateHeader: some View {
         let hebrew: (date: String, name: String?) = JewishDay.moment()
         let civil: String = Date.now.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
-        let line: String = "\(HebrewDate.weekday()) · \(civil) · \(hebrew.date)"
+        // Once a day of rest is out, its evening goes by its own name.
+        let today: JewishDay = JewishDay.of(.now)
+        let weekday: String = today.isRest && !Notifier.isHolyTime(.now) ? today.outName : HebrewDate.weekday()
+        let line: String = "\(weekday) · \(civil) · \(hebrew.date)"
         let name: String? = hebrew.name
         return VStack(alignment: .leading, spacing: 6) {
             Text(line)
@@ -535,14 +538,17 @@ struct QuestionCard: View {
     private let suggestions = ["food", "home", "gift"].compactMap { SpendCategory.find($0) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // Put together first, so the line reads from the right: the day, where, how much.
+        let day: String = entry.date.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
+        let line: String = day + " · " + entry.source + " · " + Money.text(entry.amount, fractionDigits: 2)
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 ArtworkIcon(artwork: Theme.amber, symbol: "questionmark")
                 VStack(alignment: .leading, spacing: 1) {
                     Text("מה קנינו ב\(entry.title)?")
                         .font(.system(size: 16, weight: .bold))
                         .lineLimit(2)
-                    Text("\(entry.date.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))) · \(entry.source) · \(Money.text(entry.amount, fractionDigits: 2))")
+                    Text(line)
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                 }

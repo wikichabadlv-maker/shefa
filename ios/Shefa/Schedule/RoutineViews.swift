@@ -510,13 +510,18 @@ struct RoutinePlayer: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+        // Read here and handed on. What the timeline draws later would hold
+        // on to the values of its first drawing, when there was no summary
+        // yet, and the end of the routine would close without being shown.
+        let made: Summary? = summary
+        let burst: Int = sparks
+        return TimelineView(.periodic(from: .now, by: 1)) { timeline in
             ZStack {
                 if let routine = run.routine, let step = run.step {
                     playing(routine, step: step, now: timeline.date)
                         .transition(.opacity)
-                } else if let summary {
-                    ending(summary)
+                } else if let made {
+                    ending(made, burst: burst)
                         .transition(.opacity)
                 } else {
                     Theme.ground
@@ -752,12 +757,12 @@ struct RoutinePlayer: View {
 
     // MARK: The end
 
-    private func ending(_ summary: Summary) -> some View {
+    private func ending(_ summary: Summary, burst: Int) -> some View {
         let count: String = summary.steps == 1 ? "צעד אחד" : "\(summary.steps) צעדים"
         return VStack(spacing: 16) {
             Spacer()
             ZStack {
-                SparkBurst(trigger: sparks, color: .white, reach: 70, radius: 76)
+                SparkBurst(trigger: burst, color: .white, reach: 70, radius: 76)
                 Image(systemName: "checkmark")
                     .font(.system(size: 54, weight: .heavy))
                     .frame(width: 132, height: 132)

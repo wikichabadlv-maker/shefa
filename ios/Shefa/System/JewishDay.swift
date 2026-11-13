@@ -123,6 +123,16 @@ struct JewishDay {
         return "מוצאי החג"
     }
 
+    /// The rest that is on at a moment of holy time: the day that has come
+    /// in, and the last day of it, whose evening is the one work waits for.
+    static func rest(at now: Date = .now) -> (on: JewishDay, last: JewishDay) {
+        let today: JewishDay = JewishDay.of(now)
+        let on: JewishDay = today.isRest ? today : today.next
+        var last: JewishDay = on
+        for _ in 0..<3 where last.next.isRest { last = last.next }
+        return (on, last)
+    }
+
     // MARK: Reading a date
 
     private static let lock = NSLock()

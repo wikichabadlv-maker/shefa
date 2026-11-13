@@ -630,12 +630,13 @@ struct StudyView: View {
 
     private func gapRow(_ gap: StudyLog.Gap) -> some View {
         let portion = DailyStudy.portions(on: gap.date).first { $0.id == gap.lesson }
+        let title: String = "\(StudyText.name(gap.lesson)) · \(HebrewDate.weekday(gap.date)), \(HebrewDate.text(gap.date))"
         return HStack(spacing: 8) {
             Button {
                 detail = gap
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(StudyText.name(gap.lesson)) · \(HebrewDate.weekday(gap.date)), \(HebrewDate.text(gap.date))")
+                    Text(title)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Color.primary)
                     Text(portion?.detail ?? "")

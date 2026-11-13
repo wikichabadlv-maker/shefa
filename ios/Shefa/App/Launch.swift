@@ -12,7 +12,7 @@ enum Launch {
         case "schedule", "routine", "routine-edit", "routine-over", "routine-end", "routines", "erev",
              "erev-new": return .schedule
         case "tasks", "task-stuck", "plan-day", "plan-day-pick", "plan-day-first",
-             "close-day", "close-day-left", "close-day-next": return .tasks
+             "close-day", "close-day-left", "close-day-next", "week-new", "week-pick": return .tasks
         case "notes", "achievements", "settings", "zmanim", "books", "study": return .more
         case "task", "shopping": return .tasks
         case "more": return .more
@@ -118,6 +118,10 @@ final class AppRouter {
     var isRoutinePlaying = false
     /// A place in the schedule screen to travel to, such as "routines".
     var scheduleAnchor = ""
+    /// The choosing of the week's three things.
+    var isPickingWeek = false
+    /// Counts up when the week's three changed, so what shows them reads them again.
+    var weekTurn = 0
 
     /// Where a tapped reminder leads.
     func open(_ place: String) {
@@ -133,6 +137,7 @@ final class AppRouter {
         }
         switch place {
         case "plan": isPlanningDay = true
+        case "week": isPickingWeek = true
         case "close": isClosingDay = true
         case "now": isNowPlaying = true
         case "routine": isRoutinePlaying = RoutineRun.shared.isActive

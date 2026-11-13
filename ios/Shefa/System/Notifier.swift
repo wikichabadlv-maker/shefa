@@ -229,12 +229,15 @@ final class Notifier {
                 if StudyLog.tracked.contains(DailyStudy.chumash) { lines.append("חומש: " + DailyStudy.chumashText(on: day)) }
                 let waiting = StudyLog.gaps().count
                 if isToday, waiting > 0 { lines.append("השלמות: \(waiting) שיעורים מחכים") }
-                if calendar.component(.weekday, from: day) == 1 {
+                if calendar.component(.weekday, from: day) == 1, WeekFocus.ids(now: date).isEmpty {
                     lines.append("שבוע חדש: מה שלושת הדברים שיעשו אותו טוב?")
                 }
                 let isPlanned: Bool = isToday && DayJournal.isPlannedToday
+                // The first morning of a week that has no three yet leads to choosing them.
+                let asksWeek: Bool = calendar.component(.weekday, from: day) == 1 && WeekFocus.ids(now: date).isEmpty
                 result.append(Planned(date: date, title: "בוקר טוב · \(HebrewDate.text(day))",
-                                      body: lines.joined(separator: "\n"), open: isPlanned ? "" : "plan"))
+                                      body: lines.joined(separator: "\n"),
+                                      open: asksWeek ? "week" : (isPlanned ? "" : "plan")))
             }
 
             // The first step, at the minute and the place the family named.
@@ -284,9 +287,9 @@ final class Notifier {
 
             // Without a morning brief, the new week gets a line of its own.
             if Coach.morningMinute == nil, calendar.component(.weekday, from: day) == 1,
-               let date = time(day, 9 * 60 + 30), !isToday {
+               let date = time(day, 9 * 60 + 30), !isToday, !kind.isRest, WeekFocus.ids(now: date).isEmpty {
                 result.append(Planned(date: date, title: "שבוע חדש",
-                                      body: "מה שלושת הדברים שיעשו את השבוע הזה טוב? בחרו אותם עכשיו.", open: "plan"))
+                                      body: "מה שלושת הדברים שיעשו את השבוע הזה טוב? בחרו אותם עכשיו.", open: "week"))
             }
         }
         DayJournal.noteEveningAsked(evenings)

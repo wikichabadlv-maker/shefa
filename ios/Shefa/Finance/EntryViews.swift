@@ -322,7 +322,7 @@ struct EntryDetailSheet: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-            Text("\(dateLine) · \(entry.source)")
+            Text(verbatim: dateLine + " · " + entry.source)
                 .font(.system(size: 13, weight: .semibold))
                 .opacity(0.9)
         }

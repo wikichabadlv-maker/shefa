@@ -57,6 +57,13 @@ enum Deck {
         // Shabbat and the festivals have no tasks to offer, from candle
         // lighting until they are out.
         let isRest: Bool = Notifier.isHolyTime(now)
+        if isRest {
+            // The bar asks for nothing then: it carries the greeting of the
+            // day, and has no mark to tap.
+            let rest: (on: JewishDay, last: JewishDay) = JewishDay.rest(at: now)
+            return OnDeck(target: .none, title: rest.on.greeting, detail: "הכול מחכה ל" + rest.last.outName,
+                          symbol: "sparkles", artwork: Theme.violet)
+        }
         let cue: DayJournal.Intention? = isRest ? nil : DayJournal.intention
         var todays: [ListItem] = isRest ? [] : DayPlan.ordered(tasks.filter { !$0.isDone && !$0.removed && $0.isForToday })
         if let cue, let index = todays.firstIndex(where: { $0.id == cue.taskID }) {

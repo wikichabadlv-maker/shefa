@@ -276,6 +276,8 @@ struct DayHero: View {
         if items.isEmpty { return "הוסיפו את החלק הראשון של היום." }
         let status = NowStatus.make(items: items, now: now)
         if status.item != nil { return "\(status.title) · \(status.detail)" }
+        // From candle lighting until the day is out the card asks for nothing.
+        if Notifier.isHolyTime(now) { return JewishDay.rest(at: now).on.greeting + "." }
         return done == items.count ? "כל הכבוד. מחר ממשיכים." : "הלו״ז של היום מאחוריכם. אפשר לסמן מה בוצע."
     }
 
@@ -404,9 +406,12 @@ struct SkyHeader: View {
 
     var body: some View {
         let name: String? = JewishDay.of(zmanim.day).title
+        // Put together first: a line in which every word is a value of its
+        // own would be laid out from the left.
+        let dateLine: String = HebrewDate.weekday(zmanim.day) + " · " + civil
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("\(HebrewDate.weekday(zmanim.day)) · \(civil)")
+                Text(dateLine)
                     .font(.system(size: 15, weight: .bold))
                 Spacer()
                 Text(HebrewDate.text(zmanim.day))

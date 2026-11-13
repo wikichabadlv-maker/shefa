@@ -142,7 +142,7 @@ struct NowTaskBar: View {
             let left: Int = run.remaining(at: now)
             let time: String = left >= 0
                 ? "נשארו \(RoutineRun.clock(left))"
-                : "מעבר לזמן · +\(RoutineRun.clock(left))"
+                : "מעבר לזמן · \u{2066}+\(RoutineRun.clock(left))\u{2069}"
             return Face(title: step.title, detail: "\(routine.title) · \(time)", symbol: routine.symbol,
                         artwork: routine.artwork, share: run.progress(at: now), isRoutine: true)
         }

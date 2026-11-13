@@ -34,6 +34,7 @@ struct NowRow: View {
             // The board of the eve and a routine's steps change between ticks.
             let _ = store.turn
             let _ = run.index
+            let _ = router.weekTurn
             let list: [Tile] = tiles(now: timeline.date)
             if !list.isEmpty {
                 row(list)
@@ -115,6 +116,15 @@ struct NowRow: View {
         let hasDone: Bool = items.contains { item in
             guard item.isDone, let date = item.doneAt else { return false }
             return Calendar.current.isDate(date, inSameDayAs: now)
+        }
+        // A new week is asked about once, on its first day or the evening before it.
+        let weekday: Int = Calendar.current.component(.weekday, from: now)
+        if WeekFocus.offers(now: now), weekday == 1 || weekday == 7 {
+            result.append(Tile(id: "week", kicker: weekday == 7 ? "שבוע חדש בפתח" : "שבוע חדש",
+                               title: "שלושה דברים לשבוע",
+                               detail: "בוחרים שלושה, ולא יותר: מה שאם ייעשה, זה יהיה שבוע טוב.",
+                               symbol: "target", artwork: WeekCard.artwork,
+                               action: { router.isPickingWeek = true }))
         }
         let canPlan: Bool = plan.offersPlanning(minute: minute, hasOpen: !open.isEmpty)
         if canPlan {

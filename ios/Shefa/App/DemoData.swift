@@ -21,8 +21,10 @@ enum DemoData {
             ("לסדר את הניירת לרואה החשבון", 0, 60), ("להחזיר ספר לספרייה", -1, 20),
             ("לקנות מתנה לבר מצווה", 3, 45), ("לחדש ביטוח רכב", nil, 30), ("להתקשר לסבתא", nil, 0),
         ]
+        var week: [String] = []
         for (index, line) in tasks.enumerated() {
             let item = ListItem(kind: ListItem.task, title: line.0)
+            if index == 2 || index == 4 { week.append(item.id) }
             if let days = line.1 { item.due = Calendar.current.date(byAdding: .day, value: days, to: today) }
             item.minutes = line.2
             if index == 0 { item.priority = 1 }
@@ -41,6 +43,9 @@ enum DemoData {
         finished.doneAt = .now
         finished.minutes = 15
         context.insert(finished)
+        // The week's three: one already done, one on today, one further off.
+        // One test screen shows the week before anything was chosen for it.
+        if Launch.screen != "week-new" { WeekFocus.set([finished.id] + week) }
         if Stats.doneToday == 0 { Stats.addDone(1) }
         fillJournal()
         fillHabits((try? context.fetch(FetchDescriptor<Habit>())) ?? [])

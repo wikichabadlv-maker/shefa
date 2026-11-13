@@ -41,6 +41,20 @@ enum TaskRules {
         Notifier.shared.refresh(in: context)
         if item.kind == ListItem.task { noteDay(in: context) }
 
+        // The last of the week's things: the week has what it asked for.
+        if done, WeekFocus.ids().contains(item.id) {
+            let all = FetchDescriptor<ListItem>(predicate: #Predicate<ListItem> { $0.kind == "task" && !$0.removed })
+            let week: [ListItem] = WeekFocus.tasks(in: (try? context.fetch(all)) ?? [])
+            var text: String = "שלושה דברים נבחרו לשבוע, וכולם נעשו."
+            if week.count == 2 { text = "שני דברים נבחרו לשבוע, ושניהם נעשו." }
+            if week.count == 1 { text = "דבר אחד נבחר לשבוע, והוא נעשה." }
+            if !week.isEmpty, week.allSatisfy(\.isDone),
+               Moments.shared.play("week", symbol: "target", title: "השבוע הזה כבר טוב", text: text,
+                                   artwork: WeekCard.artwork) {
+                return true
+            }
+        }
+
         guard done, wasForToday else { return false }
         let descriptor = FetchDescriptor<ListItem>(
             predicate: #Predicate<ListItem> { $0.kind == "task" && !$0.removed && !$0.isDone })
@@ -155,6 +169,7 @@ struct TasksView: View {
                         Menu {
                             Button("בונים את היום", systemImage: "sun.max.fill") { router.isPlanningDay = true }
                             Button("סוגרים את היום", systemImage: "moon.stars.fill") { router.isClosingDay = true }
+                            Button("הדברים של השבוע", systemImage: "target") { router.isPickingWeek = true }
                         } label: {
                             Image(systemName: "sun.and.horizon.fill")
                         }
@@ -171,6 +186,7 @@ struct TasksView: View {
             }
             .onChange(of: router.isPlanningDay) { _, _ in turn += 1 }
             .onChange(of: router.isClosingDay) { _, _ in turn += 1 }
+            .onChange(of: router.weekTurn) { _, _ in turn += 1 }
             .task {
                 guard Launch.screen == "task" || Launch.screen == "task-stuck" else { return }
                 try? await Task.sleep(for: .seconds(1))
@@ -209,23 +225,38 @@ struct TasksView: View {
             TaskAddBar(plan: plan)
                 .cascade(1)
 
+            if !plan.isHoly {
+                // The week's three stand between the day and its lists.
+                WeekCard(items: items, now: now, toggle: { toggle($0) }, toToday: { pick($0) },
+                         open: { editing = $0 })
+            }
+
             if open.isEmpty && finished.isEmpty {
                 emptyState
             }
 
-            if !left.isEmpty {
-                LeftoverCard(tasks: left, toToday: { pick($0) }, later: { move($0, toTomorrow: false) },
-                             untangle: { stuck = $0 })
-                    .transition(.sectionSwap)
-            }
+            if plan.isHoly {
+                // From candle lighting until the day is out the lists only
+                // wait: nothing is asked about, and nothing can be started.
+                let waiting: [ListItem] = plan.tasks.map(\.task) + left
+                if !waiting.isEmpty {
+                    section("מחכות ל" + JewishDay.rest(at: now).last.outName, waiting, isQuiet: true)
+                }
+            } else {
+                if !left.isEmpty {
+                    LeftoverCard(tasks: left, toToday: { pick($0) }, later: { move($0, toTomorrow: false) },
+                                 untangle: { stuck = $0 })
+                        .transition(.sectionSwap)
+                }
 
-            if !plan.tasks.isEmpty || !finished.isEmpty {
-                todaySection(plan)
-            } else if !open.isEmpty && left.isEmpty {
-                pickHint
+                if !plan.tasks.isEmpty || !finished.isEmpty {
+                    todaySection(plan)
+                } else if !open.isEmpty && left.isEmpty {
+                    pickHint
+                }
             }
-            if !later.isEmpty { section("בקרוב", later) }
-            if !someday.isEmpty { section("מתישהו", someday) }
+            if !later.isEmpty { section("בקרוב", later, isQuiet: plan.isHoly) }
+            if !someday.isEmpty { section("מתישהו", someday, isQuiet: plan.isHoly) }
 
             if !finished.isEmpty || !doneEarlier.isEmpty {
                 doneSection
@@ -328,12 +359,12 @@ struct TasksView: View {
         }
     }
 
-    private func section(_ title: String, _ list: [ListItem]) -> some View {
+    private func section(_ title: String, _ list: [ListItem], isQuiet: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             header(title, count: list.count)
             VStack(spacing: 0) {
                 ForEach(list) { item in
-                    row(item)
+                    row(item, isQuiet: isQuiet)
                     if item.id != list.last?.id {
                         Divider().padding(.leading, 46)
                     }
@@ -344,7 +375,8 @@ struct TasksView: View {
         }
     }
 
-    private func row(_ item: ListItem, span: DaySpan? = nil, isOut: Bool = false) -> some View {
+    /// A quiet row can be read, opened and ticked, and offers nothing more.
+    private func row(_ item: ListItem, span: DaySpan? = nil, isOut: Bool = false, isQuiet: Bool = false) -> some View {
         let actions = TaskActions(
             start: { begin(item) },
             tomorrow: { move(item, toTomorrow: true) },
@@ -352,8 +384,10 @@ struct TasksView: View {
             flag: { flag(item) },
             stuck: { stuck = item },
             delete: { remove(item) })
+        let toToday: (() -> Void)? = isQuiet ? nil : { pick(item) }
+        let offered: TaskActions? = isQuiet ? nil : actions
         return TaskRow(item: item, span: span, isOut: isOut, onToggle: { toggle(item) },
-                       onOpen: { editing = item }, onToday: { pick(item) }, actions: actions)
+                       onOpen: { editing = item }, onToday: toToday, actions: offered)
     }
 
     private var doneSection: some View {

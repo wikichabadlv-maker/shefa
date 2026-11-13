@@ -408,11 +408,15 @@ struct PlanDayFlow: View {
     // MARK: What goes in
 
     private func pickPage(_ trial: DayPlan, now: Date) -> some View {
-        let left: [ListItem] = tasks.filter { $0.isLeftOver && !$0.isForToday }
+        // The week's three are asked about first, wherever else they belong.
+        let week: Set<String> = Set(WeekFocus.ids(now: now))
+        let weekly: [ListItem] = tasks.filter { week.contains($0.id) && !$0.isForToday }
+        let rest: [ListItem] = tasks.filter { !$0.isForToday && !week.contains($0.id) }
+        let left: [ListItem] = rest.filter(\.isLeftOver)
         let todays: [ListItem] = DayPlan.ordered(tasks.filter(\.isForToday))
-        let dated: [ListItem] = tasks.filter { !$0.isForToday && !$0.isLeftOver && $0.due != nil }
+        let dated: [ListItem] = rest.filter { !$0.isLeftOver && $0.due != nil }
         let soon: [ListItem] = dated.sorted { ($0.due ?? .now) < ($1.due ?? .now) }
-        let someday: [ListItem] = tasks.filter { !$0.isForToday && !$0.isLeftOver && $0.due == nil }
+        let someday: [ListItem] = rest.filter { !$0.isLeftOver && $0.due == nil }
         return VStack(alignment: .leading, spacing: 16) {
             DayRingHero(plan: trial, doneCount: 0, now: now)
             if tasks.isEmpty {
@@ -421,6 +425,7 @@ struct PlanDayFlow: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
             }
+            group("מהדברים של השבוע", weekly)
             group("נשארו מיום קודם", left)
             group("כבר על היום", todays)
             group("בקרוב", soon)
@@ -862,6 +867,11 @@ struct CloseDayFlow: View {
         let done: [ListItem] = doneToday
         let minutes: Int = done.reduce(0) { $0 + DayJournal.estimate($1) }
         let kept: Int = habits.filter { $0.isDone(on: now) }.count
+        let week: [ListItem] = WeekFocus.tasks(in: tasks, now: now)
+        let weekDone: Int = week.filter(\.isDone).count
+        let weekTitle: String = "\(weekDone) מתוך \(week.count) מהדברים של השבוע"
+        let weekLeft: String = week.filter { !$0.isDone }.map(\.title).joined(separator: " · ")
+        let weekNote: String = weekDone == week.count ? "השבוע הזה כבר טוב." : "נשאר: " + weekLeft
         let headline: String = done.isEmpty ? "גם זה יום" : (done.count == 1 ? "מטלה אחת נעשתה" : "\(done.count) מטלות נעשו")
         let text: String = done.isEmpty
             ? "לא נסגרה היום מטלה. זה קורה, וזה לא אומר דבר על מחר. נסדר את מה שנשאר, ונסגור."
@@ -934,6 +944,26 @@ struct CloseDayFlow: View {
                 .padding(14)
                 .cardSurface()
                 .cascade(done.count + 1)
+            }
+
+            if !week.isEmpty {
+                HStack(spacing: 12) {
+                    ProgressRing(share: Double(weekDone) / Double(week.count), lineWidth: 5,
+                                 track: Theme.chip, fill: WeekCard.artwork.start)
+                        .frame(width: 38, height: 38)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(weekTitle)
+                            .font(.system(size: 16, weight: .bold))
+                        Text(weekNote)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(14)
+                .cardSurface()
+                .cascade(done.count + 2)
             }
         }
     }

@@ -73,6 +73,9 @@ struct RootView: View {
         .fullScreenCover(isPresented: $router.isRoutinePlaying) {
             RoutinePlayer()
         }
+        .sheet(isPresented: $router.isPickingWeek) {
+            WeekPicker()
+        }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
             FocusTimer.shared.tick(now: now)
             // Anything changed on this phone reaches the cloud within a minute.
@@ -99,6 +102,7 @@ struct RootView: View {
             if Launch.screen.hasPrefix("plan-day") { router.isPlanningDay = true }
             if Launch.screen.hasPrefix("close-day") { router.isClosingDay = true }
             if Launch.screen == "quick" { router.isQuickAdding = true }
+            if Launch.screen == "week-pick" { router.isPickingWeek = true }
             if Launch.screen == "now" { router.isNowPlaying = true }
             if ["routine", "routine-over", "routine-end"].contains(Launch.screen),
                let first = Routines.shared.all.first {

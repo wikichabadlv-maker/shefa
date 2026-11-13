@@ -22,7 +22,11 @@ struct NowPlayingView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            content(now: timeline.date)
+            if Notifier.isHolyTime(timeline.date), !timer.isActive {
+                resting(now: timeline.date)
+            } else {
+                content(now: timeline.date)
+            }
         }
         .arrives()
         .momentHost()
@@ -32,6 +36,76 @@ struct NowPlayingView: View {
         .sheet(item: $editing) { item in
             ScheduleEditor(item: item, draft: ScheduleDraft(item), day: .now)
         }
+    }
+
+    /// From candle lighting until the day is out there is nothing to play:
+    /// the greeting of the day, and the hour it is out.
+    private func resting(now: Date) -> some View {
+        let rest: (on: JewishDay, last: JewishDay) = JewishDay.rest(at: now)
+        var out: String = ""
+        if let end = Notifier.holyEnd(for: now) {
+            let calendar = Calendar.current
+            let title: String = Zmanim(day: end).list.first { $0.id == "shabbat-end" }?.title ?? "צאת השבת"
+            var day: String = ""
+            if !calendar.isDate(end, inSameDayAs: now) {
+                day = calendar.isDateInTomorrow(end) ? "מחר " : "ב" + HebrewDate.weekday(end) + " "
+            }
+            out = "\(title) \(day)ב־\(ScheduleItem.clock(ScheduleItem.minute(of: end)))"
+        }
+        let name: String = rest.on.title ?? "שבת קודש"
+        let waits: String = "הכול מחכה ל" + rest.last.outName + "."
+        return VStack(spacing: 12) {
+            Spacer(minLength: 0)
+            Image(systemName: "sparkles")
+                .font(.system(size: 64, weight: .bold))
+                .frame(width: 150, height: 150)
+                .background(.white.opacity(0.16), in: Circle())
+                .padding(.bottom, 14)
+                .cascade(0)
+            Text(name)
+                .font(.system(size: 14, weight: .heavy))
+                .opacity(0.85)
+                .cascade(1)
+            Text(rest.on.greeting)
+                .font(.system(size: 40, weight: .heavy))
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.7)
+                .cascade(2)
+            Text(waits)
+                .font(.system(size: 16, weight: .medium))
+                .opacity(0.9)
+                .cascade(3)
+            if !out.isEmpty {
+                Text(out)
+                    .font(.system(size: 14, weight: .bold))
+                    .monospacedDigit()
+                    .padding(.horizontal, 14)
+                    .frame(height: 34)
+                    .background(.white.opacity(0.16), in: Capsule())
+                    .padding(.top, 10)
+                    .cascade(4)
+            }
+            Spacer(minLength: 0)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 26)
+        .foregroundStyle(.white)
+        .background {
+            ZStack {
+                Color(hex: 0x0B1220)
+                LivingGradient(artwork: Theme.violet, seed: 0.3)
+                    .mask {
+                        LinearGradient(stops: [
+                            Gradient.Stop(color: .black, location: 0),
+                            Gradient.Stop(color: .black.opacity(0.85), location: 0.5),
+                            Gradient.Stop(color: .clear, location: 1),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+            }
+            .ignoresSafeArea()
+        }
+        .presentationBackground(Color(hex: 0x0B1220))
     }
 
     private struct Shown {

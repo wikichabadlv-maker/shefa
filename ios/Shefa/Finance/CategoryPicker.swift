@@ -56,7 +56,8 @@ struct CategoryPicker: View {
                         }
                         .pickerStyle(.segmented)
                     } header: {
-                        Text("\(entry.title) · \(Money.text(entry.amount, fractionDigits: 2))")
+                        // A shop's Latin name in front must not turn the line around.
+                        Text(verbatim: "\u{200F}" + entry.title + " · " + Money.text(entry.amount, fractionDigits: 2))
                     } footer: {
                         Text("קבועה חוזרת כל חודש. חד פעמית לא נכנסת לממוצע החודשי.")
                     }
