@@ -178,8 +178,14 @@ struct NowPlayingView: View {
         } else if item.isCurrent, let real = item.item {
             let seconds = now.timeIntervalSince(Calendar.current.startOfDay(for: now)) - Double(real.startMinute) * 60
             share = min(max(seconds / Double(max(real.durationMinutes, 1) * 60), 0), 1)
-            leading = FocusTimer.clock(max(seconds, 0))
-            trailing = "−" + FocusTimer.clock(max(Double(real.durationMinutes) * 60 - seconds, 0))
+            // Long parts read as hours and minutes, not hundreds of minutes.
+            func long(_ value: Double) -> String {
+                let total = Int(max(value, 0))
+                guard total >= 3600 else { return FocusTimer.clock(Double(total)) }
+                return "\(total / 3600):" + String(format: "%02d:%02d", total % 3600 / 60, total % 60)
+            }
+            leading = long(seconds)
+            trailing = "−" + long(Double(real.durationMinutes) * 60 - seconds)
         }
         return VStack(spacing: 6) {
             GeometryReader { proxy in

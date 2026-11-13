@@ -35,6 +35,7 @@ final class CalendarFeed {
         NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.load() }
         }
+        load()
     }
 
     /// Asks the iPhone for permission and starts reading.
