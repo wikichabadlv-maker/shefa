@@ -124,6 +124,8 @@ struct OverviewView: View {
                 }
             }
             .frame(height: 210)
+            // Room for the top label of the axis, which sits half above the chart.
+            .padding(.top, 8)
             .reveal(.bottom, delay: 0.35)
         }
         .cascade(8)
