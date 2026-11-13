@@ -40,8 +40,10 @@ struct HomeView: View {
                         .foregroundStyle(Theme.accent)
                         .padding(.horizontal, 4)
                         .padding(.bottom, -14)
+                        .cascade(0)
 
                     shortcuts
+                        .cascade(1)
 
                     RenewBanner()
                     BackupBanner()
@@ -60,6 +62,7 @@ struct HomeView: View {
                         MonthHeroCard(month: month)
                     }
                     .buttonStyle(.pressable)
+                    .cascade(2)
 
                     if let question {
                         QuestionCard(entry: question)
@@ -68,31 +71,41 @@ struct HomeView: View {
                     }
 
                     ZmanimCard()
+                        .cascade(3)
                         .id("today")
 
                     CalendarCard()
+                        .cascade(4)
 
                     CoachCard()
+                        .cascade(4)
 
                     HabitsCard()
+                        .cascade(5)
 
                     DailyStudyCard(opensTracker: { showsStudy = true })
+                        .cascade(6)
 
                     insights
+                        .cascade(7)
 
                     if !tasks.isEmpty {
                         tasksPreview
+                            .cascade(8)
                     }
 
                     ShoppingCard(open: shopping) {
                         router.tasksSection = .shopping
                         selection = .tasks
                     }
+                    .cascade(8)
 
                     goalsSection
+                        .cascade(9)
 
                     if !recent.isEmpty {
                         recentSection
+                            .cascade(9)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -104,7 +117,7 @@ struct HomeView: View {
                 proxy.scrollTo(Launch.anchor, anchor: .top)
             }
             }
-            .background(Theme.ground)
+            .background { AmbientGround(artwork: Theme.emerald) }
             .refreshable { await Backend.shared.sync(into: context) }
             .navigationTitle("בית")
             .toolbar {
@@ -174,6 +187,7 @@ struct HomeView: View {
             .padding(.vertical, 4)
         }
         .scrollIndicators(.hidden)
+        .scrollClipDisabled()
         .padding(.horizontal, -16)
     }
 
@@ -247,8 +261,9 @@ struct HomeView: View {
             VStack(spacing: 0) {
                 ForEach(todayTasks.prefix(3)) { item in
                     Button {
-                        withAnimation(.snappy) { TaskRules.setDone(item, true, in: context) }
-                        Feedback.done()
+                        var closedTheDay = false
+                        withAnimation(.snappy) { closedTheDay = TaskRules.setDone(item, true, in: context) }
+                        if !closedTheDay { Feedback.done() }
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "circle")
@@ -326,8 +341,10 @@ struct HomeView: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                    .padding(.vertical, 2)
                 }
                 .scrollIndicators(.hidden)
+                .scrollClipDisabled()
                 .padding(.horizontal, -16)
             }
         }
@@ -385,7 +402,7 @@ struct MonthHeroCard: View {
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("₪")
                     .font(.system(size: 28, weight: .bold))
-                Text(Money.digits(month.remaining))
+                CountUp(value: month.remaining.double) { Money.digits(Decimal($0.rounded())) }
                     .font(.system(size: 56, weight: .heavy))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
@@ -396,8 +413,7 @@ struct MonthHeroCard: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(Money.digits(month.remaining)) שקלים")
 
-            ProgressView(value: month.spentShare)
-                .tint(.white)
+            GrowBar(share: month.spentShare, height: 8, track: .white.opacity(0.25), fill: Color.white)
                 .padding(.top, 2)
 
             Text(subtitle)
@@ -419,21 +435,11 @@ struct MonthHeroCard: View {
         .foregroundStyle(.white)
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            ZStack {
-                LinearGradient(
-                    colors: [Color(hex: 0x047857), Color(hex: 0x065F46), Color(hex: 0x0F766E)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing)
-                Circle()
-                    .fill(Color(hex: 0x34D399).opacity(0.55))
-                    .frame(width: 200, height: 200)
-                    .blur(radius: 50)
-                    .offset(x: 120, y: -90)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x047857).opacity(0.45), radius: 22, y: 14)
+        .livingCard(MonthHeroCard.artwork)
     }
+
+    /// A livelier emerald than the theme's, for the app's main card.
+    static let artwork = Artwork(0x059669, 0x0F766E)
 
     private func stat(_ title: String, _ value: String, color: Color = .white) -> some View {
         VStack(spacing: 1) {
@@ -514,8 +520,7 @@ struct GoalTile: View {
             Text(goal.title)
                 .font(.system(size: 16, weight: .heavy))
                 .lineLimit(2)
-            ProgressView(value: goal.share)
-                .tint(.white)
+            GrowBar(share: goal.share, height: 6, track: .white.opacity(0.25), delay: 0.3, fill: Color.white)
             Text("\(Money.text(goal.saved)) מתוך \(Money.text(goal.target))")
                 .font(.system(size: 12, weight: .medium))
                 .opacity(0.9)
@@ -525,7 +530,8 @@ struct GoalTile: View {
         .foregroundStyle(.white)
         .padding(14)
         .frame(width: 164, height: 150, alignment: .leading)
-        .background(goal.artwork.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .livingCard(goal.artwork, radius: 22, seed: Double(abs(goal.palette) % 8) * 0.21,
+                    watermark: goal.symbol, isMoving: false)
         .accessibilityElement(children: .combine)
     }
 }

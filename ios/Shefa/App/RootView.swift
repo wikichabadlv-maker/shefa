@@ -14,6 +14,8 @@ struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @State private var ticks = 0
+    /// The opening curtain; a test run goes straight to its screen.
+    @State private var showsSplash = Launch.screen.isEmpty
 
     var body: some View {
         TabView(selection: $selection) {
@@ -42,6 +44,20 @@ struct RootView: View {
         .tabViewBottomAccessory {
             NowTaskBar()
         }
+        .momentHost()
+        .overlay {
+            ZStack {
+                if showsSplash {
+                    Splash()
+                        .transition(.opacity.combined(with: .scale(scale: 1.08)))
+                }
+            }
+        }
+        .task {
+            guard showsSplash else { return }
+            try? await Task.sleep(for: .seconds(Launch.curtain))
+            withAnimation(.easeIn(duration: 0.4)) { showsSplash = false }
+        }
         .sheet(isPresented: $router.isQuickAdding) {
             QuickAddSheet()
         }
@@ -61,12 +77,17 @@ struct RootView: View {
             }
         }
         .task {
-            ExcelImport.importIfNeeded(in: context)
+            // A demo run shows made-up lines only, never the family's own.
+            if !Launch.demo { ExcelImport.importIfNeeded(in: context) }
             Ledger.removeExampleGoals(in: context)
             Habit.addDefaultsIfNeeded(in: context)
             if Launch.demo { DemoData.fill(context) }
             if Launch.screen == "quick" { router.isQuickAdding = true }
             if Launch.screen == "now" { router.isNowPlaying = true }
+            if Launch.screen == "moment" {
+                Moments.shared.show(symbol: "checkmark", title: "היום הושלם",
+                                    text: "כל מה שתוכנן להיום נעשה. 4 ימים ברצף.", artwork: Theme.blue)
+            }
             if UserDefaults.standard.string(forKey: City.storageKey) == City.deviceID {
                 LocationFinder.shared.refresh()
             }

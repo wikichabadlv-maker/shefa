@@ -24,6 +24,8 @@ struct NowPlayingView: View {
         TimelineView(.periodic(from: .now, by: 1)) { timeline in
             content(now: timeline.date)
         }
+        .arrives()
+        .momentHost()
         .presentationDragIndicator(.visible)
         .presentationDetents([.large])
         .environment(\.layoutDirection, .rightToLeft)
@@ -96,8 +98,10 @@ struct NowPlayingView: View {
                     .font(.system(size: 13, weight: .heavy))
                     .opacity(0.8)
                     .padding(.top, 26)
+                    .cascade(0)
 
                 artwork(item, isLive: isLive)
+                    .cascade(1)
 
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -123,14 +127,19 @@ struct NowPlayingView: View {
                         .accessibilityLabel("אפשרויות")
                     }
                 }
+                .cascade(2)
 
                 progress(item, now: now, minute: minute)
+                    .cascade(3)
 
                 controls(item, list: list, index: index, now: now)
+                    .cascade(4)
 
                 actions(item, deck: deck)
+                    .cascade(5)
 
                 queue(list: list, index: index, minute: minute)
+                    .cascade(6)
             }
             .padding(.horizontal, 26)
             .padding(.bottom, 40)
@@ -138,10 +147,23 @@ struct NowPlayingView: View {
         }
         .scrollIndicators(.hidden)
         .background {
-            LinearGradient(colors: [item.artwork.start, item.artwork.end, Color(hex: 0x0B1220)],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-                .animation(.easeInOut(duration: 0.5), value: item.title)
+            // The color of what is on now, alive at the top and sinking
+            // into the dark; a new item fades its own color in.
+            ZStack {
+                Color(hex: 0x0B1220)
+                LivingGradient(artwork: item.artwork, seed: 0.3)
+                    .mask {
+                        LinearGradient(stops: [
+                            Gradient.Stop(color: .black, location: 0),
+                            Gradient.Stop(color: .black.opacity(0.85), location: 0.5),
+                            Gradient.Stop(color: .clear, location: 1),
+                        ], startPoint: .top, endPoint: .bottom)
+                    }
+                    .id(item.artwork)
+                    .transition(.opacity)
+            }
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.5), value: item.artwork)
         }
         .presentationBackground(Color(hex: 0x0B1220))
     }
@@ -163,7 +185,7 @@ struct NowPlayingView: View {
             .frame(maxWidth: 300)
             .scaleEffect(isLive ? 1 : 0.84)
             .shadow(color: .black.opacity(0.3), radius: 30, y: 18)
-            .animation(.spring(duration: 0.5, bounce: 0.35), value: isLive)
+            .animation(.spring(duration: 0.5, bounce: 0.2), value: isLive)
             .accessibilityHidden(true)
     }
 
@@ -269,7 +291,11 @@ struct NowPlayingView: View {
                     real.setDone(!isDone)
                     try? context.save()
                     SharedSync.shared.changed(in: context)
-                    if isDone { Feedback.tap() } else { Feedback.done() }
+                    if isDone {
+                        Feedback.tap()
+                    } else if !ScheduleItem.celebrateIfDayDone(in: context) {
+                        Feedback.done()
+                    }
                 }
             }
             if timer.isActive {

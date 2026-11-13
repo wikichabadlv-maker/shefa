@@ -47,20 +47,24 @@ struct NotesView: View {
                 }
                 .padding(14)
                 .cardSurface()
+                .cascade(0)
 
                 if items.isEmpty {
                     ContentUnavailableView(emptyTitle, systemImage: symbol, description: Text(emptyText))
                         .padding(.top, 30)
+                        .cascade(1)
                 }
 
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    card(item, artwork: SavingsGoal.palettes[index % SavingsGoal.palettes.count])
+                    card(item, artwork: SavingsGoal.palettes[index % SavingsGoal.palettes.count], index: index)
+                        .cascade(1 + index)
                 }
             }
             .padding(16)
         }
-        .background(Theme.ground)
+        .background { AmbientGround(artwork: kind == ListItem.learning ? Theme.blue : Theme.amber) }
         .navigationTitle(title)
+        .arrives()
         .refreshable { await SharedSync.shared.run(in: context) }
         .alert("עריכה", isPresented: isEditing) {
             TextField("תוכן", text: $editText)
@@ -73,7 +77,7 @@ struct NotesView: View {
         Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })
     }
 
-    private func card(_ item: ListItem, artwork: Artwork) -> some View {
+    private func card(_ item: ListItem, artwork: Artwork, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(item.title)
                 .font(.system(size: 17, weight: .semibold))
@@ -111,7 +115,7 @@ struct NotesView: View {
         .padding(.horizontal, 16)
         .padding(.top, 16)
         .padding(.bottom, 8)
-        .background(artwork.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .livingCard(artwork, radius: 22, seed: Double(index) * 0.31 + 0.2, isMoving: false)
     }
 
     private func add() {

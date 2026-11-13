@@ -90,6 +90,20 @@ final class ScheduleItem {
     }
 }
 
+extension ScheduleItem {
+    /// Call after a part of today was just marked as done. When it was the
+    /// last one, the day's celebration plays; returns true when it did.
+    @MainActor @discardableResult
+    static func celebrateIfDayDone(in context: ModelContext) -> Bool {
+        let all: [ScheduleItem] = (try? context.fetch(FetchDescriptor<ScheduleItem>())) ?? []
+        let today: [ScheduleItem] = NowStatus.today(all)
+        guard today.count > 1, today.allSatisfy({ $0.isDone() }) else { return false }
+        return Moments.shared.play(
+            "schedule", symbol: "checkmark.seal.fill", title: "סדר היום הושלם",
+            text: "כל \(today.count) חלקי היום סומנו. מחר ממשיכים.", artwork: Sky.now().artwork)
+    }
+}
+
 /// What is happening now in the family's own schedule, for the floating bar.
 struct NowStatus {
     let title: String

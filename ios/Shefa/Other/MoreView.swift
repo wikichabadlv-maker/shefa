@@ -19,7 +19,6 @@ private struct AppArea: Identifiable {
 struct MoreView: View {
     @State private var query = ""
     @State private var router = AppRouter.shared
-    @Namespace private var zoom
     @State private var viewing: LedgerEntry?
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<ListItem> { !$0.removed }, sort: \ListItem.createdAt, order: .reverse)
@@ -27,17 +26,23 @@ struct MoreView: View {
     @Query(filter: #Predicate<LedgerEntry> { !$0.removed }, sort: \LedgerEntry.date, order: .reverse)
     private var entries: [LedgerEntry]
 
-    private let areas = [
-        AppArea(kind: .zmanim, title: "זמני היום", subtitle: "לוח הזמנים ההלכתי", symbol: "sun.horizon.fill", artwork: Artwork(0x0EA5E9, 0x4F46E5)),
-        AppArea(kind: .shopping, title: "רשימת קניות", subtitle: "משותפת לשניכם", symbol: "cart.fill", artwork: Theme.pink),
-        AppArea(kind: .study, title: "חת״ת ורמב״ם", subtitle: "השיעורים היומיים והשלמות", symbol: "book.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
-        AppArea(kind: .books, title: "מדף הספרים", subtitle: "מה קוראים ובאיזה קצב", symbol: "books.vertical.fill", artwork: Artwork(0x0891B2, 0x155E75)),
-        AppArea(kind: .notes, title: "לזכור", subtitle: "פתקים ודברים חשובים", symbol: "lightbulb.fill", artwork: Theme.amber),
-        AppArea(kind: .learning, title: "חידושים ונקודות", subtitle: "מה למדנו ומה חידשנו", symbol: "sparkles", artwork: Theme.blue),
-        AppArea(kind: .achievements, title: "הישגים", subtitle: "מהפעילות האמיתית שלכם", symbol: "trophy.fill", artwork: Theme.violet),
-        AppArea(kind: .assistant, title: "שפע · עוזר קולי", subtitle: "בקרוב", symbol: "waveform", artwork: Theme.emerald),
-        AppArea(kind: .settings, title: "הגדרות", subtitle: "חשבון, עיר ומראה", symbol: "gearshape.fill", artwork: Artwork(0x64748B, 0x334155)),
-    ]
+    /// Every tile wears the color its own screen opens in; the tile of the
+    /// day's times wears the sky of this hour.
+    private var areas: [AppArea] {
+        let sky: Sky = Sky.now()
+        return [
+            AppArea(kind: .zmanim, title: "זמני היום", subtitle: "לוח הזמנים ההלכתי",
+                    symbol: sky.isNight ? "moon.stars.fill" : "sun.horizon.fill", artwork: sky.artwork),
+            AppArea(kind: .shopping, title: "רשימת קניות", subtitle: "משותפת לשניכם", symbol: "cart.fill", artwork: Theme.green),
+            AppArea(kind: .study, title: "חת״ת ורמב״ם", subtitle: "השיעורים היומיים והשלמות", symbol: "book.fill", artwork: StudyLog.artwork),
+            AppArea(kind: .books, title: "מדף הספרים", subtitle: "מה קוראים ובאיזה קצב", symbol: "books.vertical.fill", artwork: BooksView.artwork),
+            AppArea(kind: .notes, title: "לזכור", subtitle: "פתקים ודברים חשובים", symbol: "lightbulb.fill", artwork: Theme.amber),
+            AppArea(kind: .learning, title: "חידושים ונקודות", subtitle: "מה למדנו ומה חידשנו", symbol: "sparkles", artwork: Theme.blue),
+            AppArea(kind: .achievements, title: "הישגים", subtitle: "מהפעילות האמיתית שלכם", symbol: "trophy.fill", artwork: Theme.violet),
+            AppArea(kind: .assistant, title: "שפע · עוזר קולי", subtitle: "בקרוב", symbol: "waveform", artwork: Theme.pink),
+            AppArea(kind: .settings, title: "הגדרות", subtitle: "חשבון, עיר ומראה", symbol: "gearshape.fill", artwork: Artwork(0x64748B, 0x334155)),
+        ]
+    }
 
     private func count(_ kind: String) -> Int {
         items.filter { $0.kind == kind && !$0.isDone }.count
@@ -59,7 +64,7 @@ struct MoreView: View {
         }
     }
 
-    private func tile(_ area: AppArea) -> some View {
+    private func tile(_ area: AppArea, index: Int) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .top) {
                 Image(systemName: area.symbol)
@@ -85,8 +90,8 @@ struct MoreView: View {
         .foregroundStyle(.white)
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
-        .background(area.artwork.gradient,
-                    in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .livingCard(area.artwork, radius: 22, seed: Double(index) * 0.37 + 0.15,
+                    watermark: area.symbol, isMoving: false)
         .opacity(area.kind == .assistant ? 0.6 : 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -148,12 +153,12 @@ struct MoreView: View {
             ScrollView {
                 if query.trimmingCharacters(in: .whitespaces).isEmpty {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
-                        ForEach(areas) { area in
+                        ForEach(Array(areas.enumerated()), id: \.element.id) { index, area in
                             NavigationLink(value: area.id) {
-                                tile(area)
-                                    .matchedTransitionSource(id: area.id, in: zoom)
+                                tile(area, index: index)
                             }
                             .buttonStyle(.pressable)
+                            .cascade(index / 2)
                         }
                     }
                     .padding(16)
@@ -166,7 +171,6 @@ struct MoreView: View {
             .navigationTitle("עוד")
             .navigationDestination(for: String.self) { id in
                 destination(id)
-                    .navigationTransition(.zoom(sourceID: id, in: zoom))
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "חיפוש בכל האפליקציה")
             .sheet(item: $viewing) { entry in

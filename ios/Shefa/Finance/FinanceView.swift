@@ -9,6 +9,17 @@ enum FinanceSection: String, CaseIterable, Identifiable {
     case maaser = "מעשר"
 
     var id: String { rawValue }
+
+    /// The color that washes the top of the screen in this section.
+    var artwork: Artwork {
+        switch self {
+        case .overview: return Theme.emerald
+        case .transactions: return Theme.blue
+        case .budget: return Theme.violet
+        case .savings: return Theme.green
+        case .maaser: return Theme.amber
+        }
+    }
 }
 
 struct FinanceView: View {
@@ -78,7 +89,7 @@ struct FinanceView: View {
                         monthBar
                     }
 
-                    Group {
+                    VStack(alignment: .leading, spacing: 16) {
                         switch section {
                         case .overview:
                             OverviewView(entries: counted, month: month, summary: summary)
@@ -92,6 +103,7 @@ struct FinanceView: View {
                             MaaserView(entries: counted, month: month, summary: summary)
                         }
                     }
+                    .arrives()
                     .id(section)
                     .transition(.sectionSwap)
                 }
@@ -105,7 +117,7 @@ struct FinanceView: View {
                 proxy.scrollTo(Launch.anchor, anchor: .top)
             }
             }
-            .background(Theme.ground)
+            .background { AmbientGround(artwork: section.artwork) }
             .navigationTitle("פיננסים")
             .searchable(text: $query, prompt: "חנות או קטגוריה")
             .onChange(of: query) { _, value in
@@ -280,7 +292,16 @@ struct TransactionRow: View {
 /// The gold card that tracks maaser for the month.
 struct MaaserCard: View {
     let month: MonthSummary
+    /// Which month is shown, so that moving between months is not mistaken
+    /// for a gift.
+    var monthKey = ""
     @AppStorage("givesChomesh") private var isChomesh = false
+
+    private struct Standing: Equatable {
+        let month: String
+        let isChomesh: Bool
+        let isPaid: Bool
+    }
 
     private var due: Decimal { isChomesh ? month.maaserDue * 2 : month.maaserDue }
     private var remaining: Decimal { max(due - month.maaserGiven, 0) }
@@ -302,11 +323,10 @@ struct MaaserCard: View {
                 .pickerStyle(.segmented)
                 .frame(width: 190)
             }
-            Text(Money.text(remaining))
+            CountUp(value: remaining.double) { Money.text(Decimal($0.rounded())) }
                 .font(.system(size: 50, weight: .heavy))
                 .monospacedDigit()
-                .contentTransition(.numericText())
-            ProgressView(value: share).tint(.white)
+            GrowBar(share: share, height: 8, track: .white.opacity(0.25), fill: Color.white)
             HStack {
                 Text("ניתן \(Money.text(month.maaserGiven))")
                 Spacer()
@@ -316,8 +336,15 @@ struct MaaserCard: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Theme.amber.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0xB45309).opacity(0.45), radius: 20, y: 12)
+        .livingCard(Theme.amber, seed: 0.9)
         .animation(.snappy, value: isChomesh)
+        .onChange(of: Standing(month: monthKey, isChomesh: isChomesh, isPaid: due > 0 && remaining <= 0)) { old, new in
+            guard new.isPaid, !old.isPaid, old.month == new.month, old.isChomesh == new.isChomesh else { return }
+            // The gift is usually entered in a sheet, which is still closing.
+            Moments.shared.play("maaser." + monthKey, symbol: "heart.fill",
+                                title: isChomesh ? "החומש ניתן במלואו" : "המעשר ניתן במלואו",
+                                text: "\(Money.text(month.maaserGiven)) מהכנסות החודש ניתנו לצדקה.",
+                                artwork: Theme.amber, after: 0.45)
+        }
     }
 }

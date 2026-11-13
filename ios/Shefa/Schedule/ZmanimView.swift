@@ -24,7 +24,8 @@ struct CityPicker: View {
     }
 }
 
-/// The halachic times of the day, on their own screen.
+/// The halachic times of the day, on their own screen. The whole screen is
+/// the sky of this hour: blue at midday, gold before sunset, stars at night.
 struct ZmanimView: View {
     @AppStorage(City.storageKey) private var cityID = ""
     @State private var finder = LocationFinder.shared
@@ -38,10 +39,13 @@ struct ZmanimView: View {
             let now = timeline.date
             let city = City.find(cityID)
             let zmanim = Zmanim(city: city, day: isToday ? now : day.addingTimeInterval(12 * 3600))
+            let sky: Sky = isToday ? Sky(share: zmanim.dayShare(at: now)) : Sky.midday
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    DayStrip(day: $day)
-                    SunCard(zmanim: zmanim, now: now, isToday: isToday)
+                VStack(alignment: .leading, spacing: 20) {
+                    DayStrip(day: $day, artwork: sky.artwork, isOnSky: true)
+                        .cascade(0)
+                    SkyHeader(zmanim: zmanim, now: now, isToday: isToday)
+                        .cascade(1)
 
                     if cityID == City.deviceID {
                         deviceNote
@@ -56,18 +60,18 @@ struct ZmanimView: View {
                             HStack {
                                 Image(systemName: zman.symbol)
                                     .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(Theme.amberInk)
+                                    .foregroundStyle(Color(hex: 0xFDE68A))
                                     .frame(width: 34, height: 30)
-                                    .background(Theme.amberGround, in: Capsule())
+                                    .background(Color.white.opacity(0.14), in: Capsule())
                                 Text(zman.title)
                                     .font(.system(size: 16, weight: zman.isMain ? .bold : .regular))
                                 if isNext {
                                     Text("הבא")
                                         .font(.system(size: 11, weight: .heavy))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(sky.artwork.end)
                                         .padding(.horizontal, 8)
                                         .frame(height: 20)
-                                        .background(Theme.accent, in: Capsule())
+                                        .background(Color.white, in: Capsule())
                                 }
                                 Spacer()
                                 Text(zmanim.clock(zman.date))
@@ -75,27 +79,45 @@ struct ZmanimView: View {
                                     .monospacedDigit()
                             }
                             .frame(height: 44)
-                            .opacity(isToday && zman.date < now ? 0.45 : 1)
+                            .opacity(isToday && zman.date < now ? 0.5 : 1)
                             .accessibilityElement(children: .combine)
-                            if zman.id != zmanim.list.last?.id { Divider() }
+                            if zman.id != zmanim.list.last?.id {
+                                Divider().overlay(Color.white.opacity(0.18))
+                            }
                         }
                     }
+                    .foregroundStyle(.white)
                     .padding(16)
-                    .cardSurface()
+                    .background(.ultraThinMaterial, in: Theme.cardShape)
+                    .overlay {
+                        Theme.cardShape.strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                    }
+                    .cascade(2)
 
                     Text("הזמנים מחושבים באפליקציה לפי שיטת אדמו״ר הזקן, בגובה פני הים, ועשויים לסטות בדקה או שתיים מהלוחות. לא להמתין לרגע האחרון. תזכורות לזמנים אפשר להפעיל בהגדרות.")
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.8))
                         .padding(.horizontal, 6)
+                        .cascade(3)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            // Everything on the sky is drawn light on dark, in both appearances.
+            .environment(\.colorScheme, .dark)
+            .background {
+                SkyBackdrop(sky: sky)
+                    .animation(.smooth(duration: 0.6), value: sky.artwork)
+            }
         }
-        .background(Theme.ground)
         .navigationTitle("זמני היום")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("זמני היום")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     CityPicker()
@@ -105,6 +127,8 @@ struct ZmanimView: View {
                 }
             }
         }
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .arrives()
     }
 
     @ViewBuilder
@@ -112,16 +136,17 @@ struct ZmanimView: View {
         if finder.isWorking {
             Label("מאתרים את המיקום…", systemImage: "location.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.85))
                 .padding(.horizontal, 6)
         } else if let problem = finder.problem {
             Label(problem, systemImage: "location.slash.fill")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.amberInk)
+                .foregroundStyle(Color(hex: 0xFDE68A))
                 .padding(.horizontal, 6)
         } else if City.device == nil {
             Button("איתור המיקום שלי", systemImage: "location.fill") { finder.refresh() }
                 .font(.system(size: 15, weight: .bold))
+                .tint(.white)
                 .padding(.horizontal, 6)
         }
     }

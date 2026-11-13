@@ -3,7 +3,8 @@ import SwiftData
 import SwiftUI
 
 /// Everything about one spending group: this month, the year, what it is
-/// made of, and its lines.
+/// made of, and its lines. The screen opens in the group's own color, like
+/// an album page.
 struct CategoryDetailView: View {
     let category: SpendCategory
     let entries: [LedgerEntry]
@@ -11,6 +12,9 @@ struct CategoryDetailView: View {
 
     @Query private var budgetLines: [BudgetLine]
     @State private var editing: LedgerEntry?
+    /// True once the big title has scrolled away under the bar.
+    @State private var isScrolled = false
+    @Environment(\.layoutDirection) private var direction
 
     private struct Bar: Identifiable {
         let id: Int
@@ -67,6 +71,7 @@ struct CategoryDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                    .cascade(0)
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("לאורך השנה")
@@ -91,9 +96,11 @@ struct CategoryDetailView: View {
                         }
                     }
                     .frame(height: 190)
+                    .reveal(.bottom, delay: 0.35)
                 }
                 .padding(16)
                 .cardSurface()
+                .cascade(1)
 
                 if parts.count > 1 || (parts.first?.id ?? "כללי") != "כללי" {
                     VStack(alignment: .leading, spacing: 12) {
@@ -109,17 +116,14 @@ struct CategoryDetailView: View {
                                         .font(.system(size: 15, weight: .bold))
                                         .monospacedDigit()
                                 }
-                                GeometryReader { proxy in
-                                    Capsule()
-                                        .fill(category.artwork.gradient)
-                                        .frame(width: max(proxy.size.width * part.amount / peak, 6))
-                                }
-                                .frame(height: 8)
+                                GrowBar(share: part.amount / peak, height: 8, delay: 0.3,
+                                        fill: category.artwork.gradient)
                             }
                         }
                     }
                     .padding(16)
                     .cardSurface()
+                    .cascade(2)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -146,25 +150,45 @@ struct CategoryDetailView: View {
                         .cardSurface()
                     }
                 }
+                .cascade(3)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
+            .background(alignment: .top) {
+                StageBackdrop(artwork: category.artwork, height: 470)
+            }
         }
         .background(Theme.ground)
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top > 110
+        } action: { _, isPast in
+            withAnimation(.smooth(duration: 0.25)) { isScrolled = isPast }
+        }
         .navigationTitle(category.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // The name waits in the bar until the big title scrolls away.
+            ToolbarItem(placement: .principal) {
+                Text(category.title)
+                    .font(.system(size: 17, weight: .semibold))
+                    .opacity(isScrolled ? 1 : 0)
+            }
+        }
+        .toolbarColorScheme(isScrolled ? nil : .dark, for: .navigationBar)
+        .arrives()
         .sheet(item: $editing) { entry in
             EntryDetailSheet(entry: entry)
         }
     }
 
+    /// The top of the stage: white type straight on the color, no card.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
                 Image(systemName: category.symbol)
-                    .font(.system(size: 22, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .background(.white.opacity(0.2), in: Circle())
+                    .font(.system(size: 26, weight: .bold))
+                    .frame(width: 60, height: 60)
+                    .background(.white.opacity(0.2), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
                 Spacer()
                 Text(Ledger.monthName(month))
                     .font(.system(size: 14, weight: .bold))
@@ -172,27 +196,40 @@ struct CategoryDetailView: View {
                     .frame(height: 30)
                     .background(.white.opacity(0.2), in: Capsule())
             }
-            Text(Money.text(total))
-                .font(.system(size: 46, weight: .heavy))
+            Text(category.title)
+                .font(.system(size: 34, weight: .heavy))
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .padding(.top, 6)
+            CountUp(value: total.double) { Money.text(Decimal($0.rounded())) }
+                .font(.system(size: 58, weight: .heavy))
                 .monospacedDigit()
                 .minimumScaleFactor(0.6)
                 .lineLimit(1)
             if limit > 0 {
-                ProgressView(value: min(max((total / limit).double, 0), 1))
-                    .tint(.white)
+                GrowBar(share: min(max((total / limit).double, 0), 1), height: 8,
+                        track: .white.opacity(0.25), fill: Color.white)
                 Text(total > limit
                      ? "חריגה של \(Money.text(total - limit)) מהתקציב (\(Money.text(limit)))"
                      : "נשארו \(Money.text(limit - total)) מתוך תקציב של \(Money.text(limit))")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             } else if average > 0 {
                 Text("הממוצע החודשי שלכם: \(Money.text(Decimal(average)))")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
             }
         }
         .foregroundStyle(.white)
-        .padding(18)
+        .padding(.horizontal, 4)
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(category.artwork.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: category.artwork.end.opacity(0.4), radius: 18, y: 10)
+        .background(alignment: .bottomTrailing) {
+            Image(systemName: category.symbol)
+                .font(.system(size: 190, weight: .bold))
+                .foregroundStyle(.white.opacity(0.1))
+                .rotationEffect(.degrees(-14))
+                .offset(x: direction == .rightToLeft ? -44 : 44, y: 24)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

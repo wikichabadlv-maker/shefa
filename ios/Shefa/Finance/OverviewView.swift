@@ -3,10 +3,12 @@ import SwiftUI
 
 /// The finance dashboard: the month as pictures, with the story on top.
 struct OverviewView: View {
-    @Namespace private var zoom
     let entries: [LedgerEntry]
     let month: Date
     let summary: MonthSummary
+    /// The group picked on the round chart.
+    @State private var pickedID: String?
+    @State private var showsStory = false
 
     private struct Slice: Identifiable {
         let id: String
@@ -49,41 +51,58 @@ struct OverviewView: View {
     }
 
     var body: some View {
+        let list: [Slice] = slices
+        let total: Double = list.reduce(0) { $0 + $1.amount }
+
         MonthHeroCard(month: summary)
+            .cascade(0)
+
+        if summary.income > 0 || !list.isEmpty {
+            storyTile
+                .cascade(1)
+        }
 
         FlowBar(summary: summary)
+            .cascade(2)
 
         InsightCarousel(insights: Insights.build(entries: entries, month: month, summary: summary),
                         entries: entries, month: month)
+            .cascade(3)
 
         card("לאן הלך הכסף") {
-            if slices.isEmpty {
+            if list.isEmpty {
                 ContentUnavailableView("אין הוצאות בחודש הזה", systemImage: "chart.pie")
             } else {
-                donut
+                donut(list, total: total)
+                Text("הקישו על פלח כדי לראות את הקבוצה שלו.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
+        .cascade(4)
         .id("donut")
 
-        if !slices.isEmpty {
+        if !list.isEmpty {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
-                ForEach(slices) { slice in
+                ForEach(list) { slice in
                     NavigationLink {
                         CategoryDetailView(category: slice.category, entries: entries, month: month)
-                            .navigationTransition(.zoom(sourceID: slice.category.id, in: zoom))
                     } label: {
                         CategoryTile(category: slice.category, amount: slice.amount,
-                                     share: slice.amount / max(slices.reduce(0) { $0 + $1.amount }, 1))
-                            .matchedTransitionSource(id: slice.category.id, in: zoom)
+                                     share: slice.amount / max(total, 1))
                     }
                     .buttonStyle(.pressable)
                 }
             }
+            .cascade(5)
         }
 
         PaceCard(entries: entries, month: month, summary: summary)
+            .cascade(6)
 
         FixedCard(entries: entries, month: month)
+            .cascade(7)
             .id("fixed")
 
         card("חצי שנה במבט אחד") {
@@ -105,12 +124,15 @@ struct OverviewView: View {
                 }
             }
             .frame(height: 210)
+            .reveal(.bottom, delay: 0.35)
         }
+        .cascade(8)
         .id("history")
 
         card("השנה כמפה") {
             YearMap(entries: entries, month: month)
         }
+        .cascade(9)
         .id("year")
 
         if !biggest.isEmpty {
@@ -124,6 +146,7 @@ struct OverviewView: View {
                     }
                 }
             }
+            .cascade(9)
         }
     }
 
@@ -138,29 +161,154 @@ struct OverviewView: View {
         .cardSurface()
     }
 
-    private var donut: some View {
-        let total = slices.reduce(0) { $0 + $1.amount }
-        return Chart(slices) { slice in
-            SectorMark(angle: .value("סכום", slice.amount), innerRadius: .ratio(0.66), angularInset: 2.5)
+    /// Opens the month as a story of full colorful pages.
+    private var storyTile: some View {
+        Button {
+            showsStory = true
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: 46, height: 46)
+                    .background(.white.opacity(0.22), in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("הסיפור של \(Ledger.monthName(month))")
+                        .font(.system(size: 19, weight: .heavy))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text("החודש שלכם בכמה עמודים, כמו סיכום שנה")
+                        .font(.system(size: 13, weight: .medium))
+                        .opacity(0.92)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(.system(size: 14, weight: .bold))
+                    .opacity(0.8)
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .livingCard(MonthStory.cover, radius: 24, seed: 0.5, watermark: "sparkles")
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .fullScreenCover(isPresented: $showsStory) {
+            MonthStory(entries: entries, month: month, summary: summary)
+        }
+        .task {
+            guard Launch.screen == "finance-story" else { return }
+            try? await Task.sleep(for: .seconds(1))
+            showsStory = true
+        }
+    }
+
+    /// The round chart. A touch on a slice lifts it and names it in the middle.
+    private func donut(_ list: [Slice], total: Double) -> some View {
+        let picked: Slice? = list.first { $0.id == pickedID }
+        let chosen: String = pickedID ?? ""
+        return Chart(list) { slice in
+            let isPicked: Bool = slice.id == chosen
+            let reach: CGFloat = isPicked ? 1.0 : 0.93
+            let strength: Double = chosen.isEmpty || isPicked ? 1 : 0.38
+            SectorMark(angle: .value("סכום", slice.amount),
+                       innerRadius: .ratio(0.66),
+                       outerRadius: .ratio(reach),
+                       angularInset: 2.5)
                 .cornerRadius(6)
                 .foregroundStyle(slice.category.artwork.gradient)
+                .opacity(strength)
         }
         .chartLegend(.hidden)
-        .frame(height: 230)
+        // Always clockwise from the top, so a touch can be matched to a slice.
+        .environment(\.layoutDirection, .leftToRight)
+        .frame(height: 240)
+        .sweepReveal()
         .overlay {
-            VStack(spacing: 0) {
-                Text("סך ההוצאות")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text(Money.text(Decimal(total)))
-                    .font(.system(size: 28, weight: .heavy))
-                    .monospacedDigit()
-                Text(Ledger.monthName(month))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+            GeometryReader { proxy in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { point in
+                        pick(at: point, in: proxy.size, list: list, total: total)
+                    }
+            }
+        }
+        .overlay {
+            ZStack {
+                if let picked {
+                    NavigationLink {
+                        CategoryDetailView(category: picked.category, entries: entries, month: month)
+                    } label: {
+                        VStack(spacing: 1) {
+                            Text(picked.category.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Text(Money.text(Decimal(picked.amount.rounded())))
+                                .font(.system(size: 26, weight: .heavy))
+                                .monospacedDigit()
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            HStack(spacing: 3) {
+                                Text((picked.amount / max(total, 1)).formatted(.percent.precision(.fractionLength(0))))
+                                Text("· לפירוט")
+                                Image(systemName: "chevron.forward")
+                                    .font(.system(size: 10, weight: .heavy))
+                            }
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.accent)
+                        }
+                        .frame(width: 138, height: 138)
+                        .contentShape(Circle())
+                    }
+                    .buttonStyle(.pressable)
+                    .id(picked.id)
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                } else {
+                    VStack(spacing: 0) {
+                        Text("סך ההוצאות")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        CountUp(value: total) { Money.text(Decimal($0.rounded())) }
+                            .font(.system(size: 28, weight: .heavy))
+                            .monospacedDigit()
+                        Text(Ledger.monthName(month))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                }
             }
         }
         .accessibilityLabel("תרשים חלוקת ההוצאות")
+    }
+
+    /// Finds the slice under a touch: the slices run clockwise from the top,
+    /// in the order of the list.
+    private func pick(at point: CGPoint, in size: CGSize, list: [Slice], total: Double) {
+        let dx: Double = Double(point.x - size.width / 2)
+        let dy: Double = Double(point.y - size.height / 2)
+        let distance: Double = (dx * dx + dy * dy).squareRoot()
+        let outer: Double = Double(min(size.width, size.height)) / 2
+        var next: String? = nil
+        if distance >= outer * 0.56, distance <= outer * 1.04, total > 0 {
+            var turn: Double = atan2(dx, -dy) / (2 * Double.pi)
+            if turn < 0 { turn += 1 }
+            var running: Double = 0
+            for slice in list {
+                running += slice.amount
+                if turn * total <= running {
+                    next = slice.id
+                    break
+                }
+            }
+        }
+        if next == pickedID { next = nil }
+        if next == nil && pickedID == nil { return }
+        Feedback.tap()
+        withAnimation(.smooth(duration: 0.35)) { pickedID = next }
     }
 }
 
@@ -209,6 +357,7 @@ struct FlowBar: View {
                 }
             }
             .frame(height: 18)
+            .reveal(.leading, delay: 0.3)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8, alignment: .leading)],
                       alignment: .leading, spacing: 8) {
                 ForEach(parts) { part in
@@ -254,8 +403,10 @@ struct InsightCarousel: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                .padding(.vertical, 2)
             }
             .scrollIndicators(.hidden)
+            .scrollClipDisabled()
             .padding(.horizontal, -16)
         }
     }
@@ -280,48 +431,49 @@ struct InsightCarousel: View {
         .multilineTextAlignment(.leading)
         .padding(14)
         .frame(width: 232, height: 150, alignment: .leading)
-        .background(insight.artwork.gradient, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .livingCard(insight.artwork, radius: 24, watermark: insight.symbol, isMoving: false)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// A colorful tile for one spending group.
+/// One spending group as a colorful cover, like a tile in a music library.
 struct CategoryTile: View {
     let category: SpendCategory
     let amount: Double
     let share: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                ArtworkIcon(artwork: category.artwork, symbol: category.symbol, size: 36)
+                Image(systemName: category.symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 36, height: 36)
+                    .background(.white.opacity(0.22), in: Circle())
                 Spacer()
                 Text(share, format: .percent.precision(.fractionLength(0)))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13, weight: .heavy))
                     .monospacedDigit()
+                    .padding(.horizontal, 8)
+                    .frame(height: 24)
+                    .background(.white.opacity(0.2), in: Capsule())
             }
+            Spacer(minLength: 10)
             Text(category.title)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .opacity(0.94)
                 .lineLimit(1)
-            Text(Money.text(Decimal(amount)))
-                .font(.system(size: 22, weight: .heavy))
+            CountUp(value: amount) { Money.text(Decimal($0.rounded())) }
+                .font(.system(size: 23, weight: .heavy))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.chip)
-                    Capsule().fill(category.artwork.gradient)
-                        .frame(width: max(proxy.size.width * share, 6))
-                }
-            }
-            .frame(height: 6)
+            GrowBar(share: share, height: 5, track: .white.opacity(0.25), delay: 0.3, fill: Color.white)
         }
+        .foregroundStyle(.white)
         .padding(14)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 10, y: 6)
+        .frame(maxWidth: .infinity, minHeight: 148, alignment: .leading)
+        .livingCard(category.artwork, radius: 22, seed: share * 3, watermark: category.symbol, isMoving: false)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
 }

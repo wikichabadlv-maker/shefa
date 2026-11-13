@@ -4,9 +4,12 @@ import SwiftUI
 /// Rules for tasks that several screens share.
 @MainActor
 enum TaskRules {
-    /// Marks a task done or open again, with its reward, and creates the
-    /// next round of a repeating task.
-    static func setDone(_ item: ListItem, _ done: Bool, in context: ModelContext) {
+    /// Marks a task done or open again and creates the next round of a
+    /// repeating task. When this was the last thing planned for today, the
+    /// day's celebration plays; returns true when it did.
+    @discardableResult
+    static func setDone(_ item: ListItem, _ done: Bool, in context: ModelContext) -> Bool {
+        let wasForToday: Bool = item.kind == ListItem.task && item.isForToday
         item.isDone = done
         item.doneAt = done ? .now : nil
         item.updatedAt = .now
@@ -28,6 +31,18 @@ enum TaskRules {
         try? context.save()
         SharedSync.shared.changed(in: context)
         Notifier.shared.refresh(in: context)
+
+        guard done, wasForToday else { return false }
+        let descriptor = FetchDescriptor<ListItem>(
+            predicate: #Predicate<ListItem> { $0.kind == "task" && !$0.removed && !$0.isDone })
+        let open: [ListItem] = (try? context.fetch(descriptor)) ?? []
+        let id: String = item.id
+        if open.contains(where: { $0.id != id && $0.isForToday }) { return false }
+        let streak: Int = Stats.streak
+        return Moments.shared.play(
+            "tasks", symbol: "checkmark", title: "היום הושלם",
+            text: streak > 1 ? "כל מה שתוכנן להיום נעשה. \(streak) ימים ברצף." : "כל מה שתוכנן להיום נעשה.",
+            artwork: Theme.blue)
     }
 
     /// The first free window today that fits, starting from now. On Friday
@@ -58,7 +73,6 @@ struct TasksView: View {
     @State private var draftImportant = false
     @State private var editing: ListItem?
     @State private var showsDone = false
-    @State private var celebrates = false
     @FocusState private var isTyping: Bool
 
     private var open: [ListItem] { items.filter { !$0.isDone } }
@@ -108,7 +122,9 @@ struct TasksView: View {
                             VStack(alignment: .leading, spacing: 18) {
                             TasksHero(doneToday: doneToday.count, openToday: today.count,
                                       minutesLeft: today.reduce(0) { $0 + $1.minutes })
+                                .cascade(0)
                             addBar
+                                .cascade(1)
 
                             if open.isEmpty && doneToday.isEmpty {
                                 emptyState
@@ -129,6 +145,7 @@ struct TasksView: View {
                             }
                         }
                     }
+                    .arrives()
                     .id(router.tasksSection)
                     .transition(.sectionSwap)
                 }
@@ -136,12 +153,11 @@ struct TasksView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
-            .background(Theme.ground)
+            .background {
+                AmbientGround(artwork: router.tasksSection == .shopping ? Theme.green : Theme.blue)
+            }
             .navigationTitle(router.tasksSection == .shopping ? "קניות" : "מטלות")
             .refreshable { await SharedSync.shared.run(in: context) }
-            .overlay {
-                if celebrates { ConfettiView().allowsHitTesting(false).ignoresSafeArea() }
-            }
             .sheet(item: $editing) { item in
                 TaskEditor(item: item)
             }
@@ -351,23 +367,11 @@ struct TasksView: View {
         }
     }
 
+    /// The check button has already given the tap and the chime.
     private func toggle(_ item: ListItem) {
         let finishing = !item.isDone
-        let wasLastToday = finishing && item.isForToday && today.count == 1
-        withAnimation(.spring(duration: 0.4, bounce: 0.3)) {
-            TaskRules.setDone(item, finishing, in: context)
-        }
-        if wasLastToday {
-            Feedback.celebrate()
-            celebrates = true
-            Task {
-                try? await Task.sleep(for: .seconds(2.2))
-                celebrates = false
-            }
-        } else if finishing {
-            Feedback.done()
-        } else {
-            Feedback.tap()
+        withAnimation(.spring(duration: 0.4, bounce: 0.15)) {
+            _ = TaskRules.setDone(item, finishing, in: context)
         }
     }
 
@@ -447,8 +451,7 @@ struct TasksHero: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Theme.blue.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x1E3A8A).opacity(0.4), radius: 20, y: 12)
+        .livingCard(Theme.blue, seed: 0.4)
         .accessibilityElement(children: .combine)
     }
 }
@@ -461,17 +464,7 @@ struct TaskRow: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Button(action: onToggle) {
-                Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 25, weight: item.priority > 0 ? .bold : .regular))
-                    .foregroundStyle(item.isDone ? Theme.accent
-                                     : (item.priority > 0 ? Color(hex: 0xEA580C) : Color.secondary))
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 42, height: 48)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            .accessibilityLabel(item.isDone ? "החזרה לפתוחות" : "סימון כבוצע")
+            CheckButton(isDone: item.isDone, isImportant: item.priority > 0, action: onToggle)
 
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 2) {

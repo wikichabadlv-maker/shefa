@@ -127,21 +127,25 @@ enum Deck {
 
     /// Marks what is on the bar as done and lets the next thing come up.
     static func complete(_ deck: OnDeck, in context: ModelContext) {
+        // A celebration brings its own sound; otherwise the usual chime.
+        var celebrated = false
         switch deck.target {
         case .schedule(let item):
             item.setDone(true)
             try? context.save()
             SharedSync.shared.changed(in: context)
+            celebrated = ScheduleItem.celebrateIfDayDone(in: context)
         case .habit(let habit):
             if !habit.isDone() { habit.toggle() }
             try? context.save()
+            celebrated = Habit.celebrateIfDayFull(in: context)
         case .task(let task):
-            TaskRules.setDone(task, true, in: context)
+            celebrated = TaskRules.setDone(task, true, in: context)
         case .none:
             return
         }
         if deck.isPinned { clearPin() }
         if FocusTimer.shared.isActive, FocusTimer.shared.title == deck.title { FocusTimer.shared.stop() }
-        Feedback.done()
+        if !celebrated { Feedback.done() }
     }
 }

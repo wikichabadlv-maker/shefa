@@ -20,7 +20,6 @@ struct ScheduleView: View {
             TimelineView(.periodic(from: .now, by: 60)) { timeline in
                 content(now: timeline.date)
             }
-            .background(Theme.ground)
             .navigationTitle("לו״ז")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -39,20 +38,29 @@ struct ScheduleView: View {
     }
 
     private func content(now: Date) -> some View {
-        ScrollView {
+        // The screen wears the colors of the sky at this hour.
+        let sky: Sky = isToday ? Sky.now(now) : Sky.midday
+        return ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                DayStrip(day: $day)
-                DayHero(items: todays, day: day, now: now, isToday: isToday)
+                DayStrip(day: $day, artwork: sky.artwork)
+                    .cascade(0)
+                DayHero(items: todays, day: day, now: now, isToday: isToday, sky: sky)
+                    .cascade(1)
                 QuickScheduleBar(day: day, todays: todays)
+                    .cascade(2)
                 CalendarDayCard(day: day)
+                    .cascade(3)
                 timeline(now: now)
+                    .cascade(4)
                 if isToday {
                     HabitsCard()
+                        .cascade(5)
                 }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
         }
+        .background { AmbientGround(artwork: sky.artwork) }
     }
 
     // MARK: Timeline
@@ -125,26 +133,15 @@ struct ScheduleView: View {
             }
             .buttonStyle(.pressable)
 
-            Button {
-                withAnimation(.spring(duration: 0.35, bounce: 0.4)) { item.setDone(!isDone, on: day) }
+            // The check button gives the tap, the chime and the sparks.
+            CheckButton(isDone: isDone) {
+                withAnimation(.spring(duration: 0.35, bounce: 0.2)) { item.setDone(!isDone, on: day) }
                 try? context.save()
                 SharedSync.shared.changed(in: context)
-                if isDone {
-                    Feedback.tap()
-                } else if todays.allSatisfy({ $0.isDone(on: day) }) {
-                    Feedback.celebrate()
-                } else {
-                    Feedback.done()
+                if !isDone, isToday {
+                    ScheduleItem.celebrateIfDayDone(in: context)
                 }
-            } label: {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 26))
-                    .foregroundStyle(isDone ? Theme.accent : Color.secondary)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 44, height: 44)
             }
-            .buttonStyle(.pressable)
-            .accessibilityLabel(isDone ? "ביטול הסימון" : "סימון כבוצע")
         }
         .frame(minHeight: 58)
         .contextMenu {
@@ -193,6 +190,7 @@ struct DayHero: View {
     let day: Date
     let now: Date
     let isToday: Bool
+    var sky: Sky = .midday
 
     private var done: Int { items.filter { $0.isDone(on: day) }.count }
 
@@ -238,8 +236,14 @@ struct DayHero: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Theme.emerald.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x047857).opacity(0.4), radius: 20, y: 12)
+        .background {
+            if sky.isNight {
+                StarField(count: 34)
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            }
+        }
+        .livingCard(sky.artwork, seed: 0.2)
+        .animation(.smooth(duration: 0.6), value: sky.artwork)
         .accessibilityElement(children: .combine)
     }
 }
@@ -247,6 +251,10 @@ struct DayHero: View {
 /// Seven days to move between, starting today.
 struct DayStrip: View {
     @Binding var day: Date
+    /// The color of the chosen day.
+    var artwork: Artwork = Theme.emerald
+    /// On a colorful ground the days are glass and the chosen one is white.
+    var isOnSky = false
 
     private var days: [Date] {
         let today = Calendar.current.startOfDay(for: .now)
@@ -270,8 +278,11 @@ struct DayStrip: View {
                             .monospacedDigit()
                     }
                     .frame(maxWidth: .infinity, minHeight: 52)
-                    .foregroundStyle(isOn ? Color.white : Color.primary)
-                    .background(isOn ? AnyShapeStyle(Theme.emerald.gradient) : AnyShapeStyle(Theme.card),
+                    .foregroundStyle(isOnSky ? (isOn ? artwork.end : Color.white)
+                                     : (isOn ? Color.white : Color.primary))
+                    .background(isOnSky
+                                ? (isOn ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.white.opacity(0.16)))
+                                : (isOn ? AnyShapeStyle(artwork.gradient) : AnyShapeStyle(Theme.card)),
                                 in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.pressable)
@@ -281,20 +292,14 @@ struct DayStrip: View {
     }
 }
 
-/// The colorful card with the sun's path across the day.
-struct SunCard: View {
+/// The top of the times screen, drawn straight on the sky: the sun's path,
+/// and the next time of the day.
+struct SkyHeader: View {
     let zmanim: Zmanim
     let now: Date
     let isToday: Bool
 
     private var share: Double { zmanim.dayShare(at: now) }
-    private var isNight: Bool { isToday && (share < 0 || share > 1) }
-
-    private var colors: [Color] {
-        if isNight { return [Color(hex: 0x312E81), Color(hex: 0x1E1B4B), Color(hex: 0x0F172A)] }
-        if isToday && share > 0.8 { return [Color(hex: 0xEA580C), Color(hex: 0xDB2777), Color(hex: 0x7C3AED)] }
-        return [Color(hex: 0x0EA5E9), Color(hex: 0x2563EB), Color(hex: 0x4F46E5)]
-    }
 
     private var headline: (String, String) {
         guard isToday else {
@@ -308,27 +313,29 @@ struct SunCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("\(HebrewDate.weekday(zmanim.day)) · \(HebrewDate.text(zmanim.day))")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                 Spacer()
                 Text(zmanim.day.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide)))
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .opacity(0.85)
             }
             SunArc(share: isToday ? share : 0.5, showsSun: isToday)
-                .frame(height: 118)
+                .frame(height: 156)
                 .environment(\.layoutDirection, .leftToRight)
                 .overlay(alignment: .bottom) {
                     VStack(spacing: 0) {
                         Text(headline.0)
-                            .font(.system(size: 20, weight: .heavy))
+                            .font(.system(size: 30, weight: .heavy))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                         Text(headline.1)
-                            .font(.system(size: 13, weight: .semibold))
-                            .opacity(0.9)
+                            .font(.system(size: 15, weight: .semibold))
+                            .opacity(0.92)
                     }
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 2)
                 }
             HStack {
                 edge("שקיעה", zmanim.sunset, "sunset.fill")
@@ -338,37 +345,54 @@ struct SunCard: View {
             .environment(\.layoutDirection, .leftToRight)
         }
         .foregroundStyle(.white)
-        .padding(18)
-        .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: colors[1].opacity(0.45), radius: 20, y: 12)
+        .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
     }
 
     private func edge(_ title: String, _ date: Date?, _ symbol: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
             Text(date.map { zmanim.clock($0) } ?? "--:--")
-                .font(.system(size: 15, weight: .heavy))
+                .font(.system(size: 16, weight: .heavy))
                 .monospacedDigit()
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .opacity(0.85)
         }
     }
 }
 
-/// A dotted half circle with the sun on it.
+/// A dotted half circle with the sun on it. When the screen opens, the sun
+/// travels from the sunrise to where it stands now.
 struct SunArc: View {
     let share: Double
     var showsSun = true
+    @Environment(\.arrived) private var arrived
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        SunPath(share: arrived || reduceMotion ? share : min(share, 0), showsSun: showsSun)
+            .animation(.smooth(duration: 1.4).delay(0.2), value: arrived)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The drawing behind `SunArc`, for every point of the sun's way.
+private struct SunPath: View, Animatable {
+    var share: Double
+    let showsSun: Bool
+
+    var animatableData: Double {
+        get { share }
+        set { share = newValue }
+    }
 
     var body: some View {
         GeometryReader { proxy in
-            let radius = min(proxy.size.width / 2 - 14, proxy.size.height - 16)
+            let radius: CGFloat = min(proxy.size.width / 2 - 14, proxy.size.height - 16)
             let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height - 2)
-            let clamped = min(max(share, 0), 1)
+            let clamped: Double = min(max(share, 0), 1)
             // The sun rises in the east, drawn here on the right as on a map facing south.
             let angle = Angle.degrees(360 - 180 * clamped)
             let sun = CGPoint(x: center.x + radius * CGFloat(cos(angle.radians)),
@@ -390,13 +414,12 @@ struct SunArc: View {
                 if showsSun && share >= 0 && share <= 1 {
                     Circle()
                         .fill(Color(hex: 0xFDE68A))
-                        .frame(width: 24, height: 24)
-                        .shadow(color: Color(hex: 0xFDE68A).opacity(0.9), radius: 12)
+                        .frame(width: 26, height: 26)
+                        .shadow(color: Color(hex: 0xFDE68A).opacity(0.9), radius: 14)
                         .position(sun)
                 }
             }
         }
-        .accessibilityHidden(true)
     }
 }
 

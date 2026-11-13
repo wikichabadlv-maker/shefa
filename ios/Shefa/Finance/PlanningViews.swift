@@ -172,8 +172,8 @@ struct BudgetList: View {
                         .foregroundStyle(isOver ? Color.red : Color.secondary)
                 }
                 if limit > 0 {
-                    ProgressView(value: share(spent, of: limit))
-                        .tint(isOver ? Color.red : (isFast(spent, limit) ? Color.orange : category.artwork.start))
+                    GrowBar(share: share(spent, of: limit), height: 6,
+                            fill: isOver ? Color.red : (isFast(spent, limit) ? Color.orange : category.artwork.start))
                     Text(note(spent: spent, limit: limit))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isOver ? Color.red : (isFast(spent, limit) ? Color.orange : Color.secondary))
@@ -224,7 +224,7 @@ struct BudgetHero: View {
                 Text("נוצל ב\(Ledger.monthName(month))")
                     .font(.system(size: 15, weight: .semibold))
                     .opacity(0.9)
-                Text(Money.text(used))
+                CountUp(value: used.double) { Money.text(Decimal($0.rounded())) }
                     .font(.system(size: 42, weight: .heavy))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
@@ -244,7 +244,7 @@ struct BudgetHero: View {
                 ProgressRing(share: share, lineWidth: 10)
                     .frame(width: 92, height: 92)
                     .overlay {
-                        Text(share, format: .percent.precision(.fractionLength(0)))
+                        CountUp(value: share) { $0.formatted(.percent.precision(.fractionLength(0))) }
                             .font(.system(size: 19, weight: .heavy))
                             .monospacedDigit()
                     }
@@ -256,27 +256,31 @@ struct BudgetHero: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background((isOver ? Artwork(0xDC2626, 0x991B1B) : Theme.violet).gradient,
-                    in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: (isOver ? Color(hex: 0x991B1B) : Color(hex: 0x4C1D95)).opacity(0.4), radius: 20, y: 12)
+        .livingCard(isOver ? Artwork(0xDC2626, 0x991B1B) : Theme.violet, seed: 0.3)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// A white progress ring for colorful cards.
+/// A white progress ring for colorful cards. It draws itself when its
+/// screen opens.
 struct ProgressRing: View {
     let share: Double
     var lineWidth: CGFloat = 8
     var track: Color = .white.opacity(0.25)
     var fill: Color = .white
+    @Environment(\.arrived) private var arrived
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let target: Double = min(max(share, 0), 1)
         ZStack {
             Circle().stroke(track, lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: min(max(share, 0), 1))
+                .trim(from: 0, to: arrived || reduceMotion ? target : 0)
                 .stroke(fill, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                .animation(.smooth(duration: 1.0).delay(0.15), value: arrived)
+                .animation(.smooth(duration: 0.5), value: target)
         }
         .padding(lineWidth / 2)
         .accessibilityHidden(true)
@@ -367,12 +371,11 @@ struct SavingsList: View {
                     Text("חסכנו עד היום")
                         .font(.system(size: 15, weight: .semibold))
                         .opacity(0.9)
-                    Text(Money.text(totalSaved))
+                    CountUp(value: totalSaved.double) { Money.text(Decimal($0.rounded())) }
                         .font(.system(size: 42, weight: .heavy))
                         .monospacedDigit()
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
-                        .contentTransition(.numericText())
                     if totalTarget > 0 {
                         Text("מתוך \(Money.text(totalTarget)) בכל היעדים")
                             .font(.system(size: 14, weight: .bold))
@@ -383,8 +386,9 @@ struct SavingsList: View {
                 ProgressRing(share: share, lineWidth: 10)
                     .frame(width: 88, height: 88)
                     .overlay {
-                        Image(systemName: "banknote.fill")
-                            .font(.system(size: 24, weight: .bold))
+                        CountUp(value: share) { $0.formatted(.percent.precision(.fractionLength(0))) }
+                            .font(.system(size: 19, weight: .heavy))
+                            .monospacedDigit()
                     }
             }
             HStack(spacing: 0) {
@@ -402,8 +406,7 @@ struct SavingsList: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Theme.emerald.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x047857).opacity(0.4), radius: 20, y: 12)
+        .livingCard(Theme.emerald, seed: 0.6)
         .accessibilityElement(children: .combine)
     }
 
@@ -509,7 +512,7 @@ struct GoalCard: View {
                         .font(.system(size: 18, weight: .heavy))
                         .lineLimit(1)
                 }
-                Text(Money.text(goal.saved))
+                CountUp(value: goal.saved.double) { Money.text(Decimal($0.rounded())) }
                     .font(.system(size: 32, weight: .heavy))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
@@ -520,18 +523,18 @@ struct GoalCard: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 0)
-            ProgressRing(share: goal.share, lineWidth: 8)
-                .frame(width: 72, height: 72)
+            LiquidOrb(share: goal.share)
+                .frame(width: 78, height: 78)
                 .overlay {
-                    Text(goal.share, format: .percent.precision(.fractionLength(0)))
-                        .font(.system(size: 16, weight: .heavy))
+                    CountUp(value: goal.share) { $0.formatted(.percent.precision(.fractionLength(0))) }
+                        .font(.system(size: 17, weight: .heavy))
                         .monospacedDigit()
+                        .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
                 }
         }
         .foregroundStyle(.white)
         .padding(18)
-        .background(goal.artwork.gradient, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .shadow(color: goal.artwork.end.opacity(0.35), radius: 16, y: 10)
+        .livingCard(goal.artwork, radius: 26, seed: Double(abs(goal.palette) % 8) * 0.37 + 0.2)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -663,6 +666,8 @@ struct GoalSheet: View {
                 Button("ביטול", role: .cancel) {}
             }
         }
+        .arrives()
+        .momentHost()
         .environment(\.layoutDirection, .rightToLeft)
     }
 
@@ -670,7 +675,8 @@ struct GoalSheet: View {
         Button {
             guard let value = Ledger.amount(from: moveText), value > 0 else { return }
             let next = max(goal.saved + (sign > 0 ? value : -value), 0)
-            withAnimation(.snappy) {
+            let reaches = goal.target > 0 && goal.saved < goal.target && next >= goal.target
+            withAnimation(.smooth(duration: 0.7)) {
                 goal.saved = next
                 goal.updatedAt = .now
             }
@@ -678,6 +684,13 @@ struct GoalSheet: View {
             moveText = ""
             try? context.save()
             SharedSync.shared.changed(in: context)
+            if reaches {
+                Moments.goalReached(goal)
+            } else if sign > 0 {
+                Feedback.done()
+            } else {
+                Feedback.tap()
+            }
         } label: {
             Label(title, systemImage: symbol)
                 .font(.system(size: 16, weight: .bold))
@@ -694,6 +707,7 @@ struct GoalSheet: View {
         let title = draft.title.trimmingCharacters(in: .whitespaces)
         let saved = Ledger.amount(from: draft.savedText) ?? 0
         if let goal {
+            let reaches = goal.saved < goal.target && saved >= target
             goal.title = title
             goal.target = target
             goal.saved = saved
@@ -701,6 +715,13 @@ struct GoalSheet: View {
             goal.palette = draft.palette
             goal.deadline = draft.hasDeadline ? draft.deadline : nil
             goal.updatedAt = .now
+            if reaches {
+                // After the sheet has closed, on the screen behind it.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(0.6))
+                    Moments.goalReached(goal)
+                }
+            }
         } else {
             let created = SavingsGoal(id: draft.id, title: title, saved: saved, target: target,
                                       symbol: draft.symbol, palette: draft.palette)

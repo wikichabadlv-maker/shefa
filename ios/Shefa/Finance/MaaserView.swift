@@ -52,7 +52,7 @@ struct MaaserView: View {
         let given = rows.reduce(Decimal(0)) { $0 + $1.given }
         let balance = due - given
 
-        MaaserCard(month: summary)
+        MaaserCard(month: summary, monthKey: String(DayKey.of(month).prefix(7)))
 
         Button {
             isAdding = true
@@ -97,8 +97,7 @@ struct MaaserView: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
-                    ProgressView(value: share)
-                        .tint(share >= 1 ? Theme.accent : Theme.amber.start)
+                    GrowBar(share: share, height: 6, fill: share >= 1 ? Theme.accent : Theme.amber.start)
                 }
                 .accessibilityElement(children: .combine)
             }

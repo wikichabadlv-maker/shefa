@@ -83,12 +83,28 @@ final class Habit {
     }
 }
 
+extension Habit {
+    /// Call after a practice was just kept. When it was the last one for
+    /// today, the full day's celebration plays; returns true when it did.
+    @MainActor @discardableResult
+    static func celebrateIfDayFull(in context: ModelContext) -> Bool {
+        let all: [Habit] = ((try? context.fetch(FetchDescriptor<Habit>())) ?? []).filter { !$0.removed }
+        guard all.count > 1, all.allSatisfy({ $0.isDone() }) else { return false }
+        let streak: Int = fullStreak(all)
+        return Moments.shared.play(
+            "habits", symbol: "sparkles", title: "יום מלא",
+            text: streak > 1 ? "כל קביעויות היום נשמרו. \(streak) ימים ברצף." : "כל קביעויות היום נשמרו.",
+            artwork: Theme.emerald)
+    }
+}
+
 /// Today's practices as round buttons, with the count and the streak.
 struct HabitsCard: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Habit> { !$0.removed }, sort: \Habit.order) private var habits: [Habit]
     @State private var isEditing = false
-    @State private var celebrates = false
+    /// Rises by one for a practice each time it is kept, to throw its sparks.
+    @State private var sparks: [String: Int] = [:]
 
     private var done: Int { habits.filter { $0.isDone() }.count }
 
@@ -135,14 +151,9 @@ struct HabitsCard: View {
                         button(habit)
                     }
                 }
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.chip)
-                        Capsule().fill(Theme.emerald.gradient)
-                            .frame(width: max(proxy.size.width * CGFloat(done) / CGFloat(max(habits.count, 1)), done > 0 ? 8 : 0))
-                    }
-                }
-                .frame(height: 6)
+                GrowBar(share: Double(done) / Double(max(habits.count, 1)), height: 6,
+                        fill: Theme.emerald.gradient)
+                    .animation(.smooth(duration: 0.4), value: done)
                 Text(line)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
@@ -151,9 +162,6 @@ struct HabitsCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
-        .overlay {
-            if celebrates { ConfettiView().allowsHitTesting(false) }
-        }
         .sheet(isPresented: $isEditing) {
             HabitsSheet()
         }
@@ -162,26 +170,18 @@ struct HabitsCard: View {
     private func button(_ habit: Habit) -> some View {
         let isDone = habit.isDone()
         return Button {
-            withAnimation(.spring(duration: 0.35, bounce: 0.45)) { habit.toggle() }
+            withAnimation(.spring(duration: 0.35, bounce: 0.3)) { habit.toggle() }
             try? context.save()
-            if !isDone {
-                let allDone = habits.allSatisfy { $0.isDone() }
-                if allDone {
-                    Feedback.celebrate()
-                    celebrates = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(2.2))
-                        celebrates = false
-                    }
-                } else {
-                    Feedback.done()
-                }
-            } else {
+            if isDone {
                 Feedback.tap()
+            } else {
+                sparks[habit.id, default: 0] += 1
+                if !Habit.celebrateIfDayFull(in: context) { Feedback.done() }
             }
         } label: {
             VStack(spacing: 6) {
                 ZStack {
+                    SparkBurst(trigger: sparks[habit.id] ?? 0, color: habit.artwork.start, reach: 20, radius: 31)
                     Circle()
                         .fill(isDone ? AnyShapeStyle(habit.artwork.gradient) : AnyShapeStyle(Theme.chip))
                         .frame(width: 54, height: 54)
@@ -316,48 +316,5 @@ struct HabitsSheet: View {
         try? context.save()
         newTitle = ""
         Feedback.added()
-    }
-}
-
-/// A short burst of colorful dots for a finished day.
-struct ConfettiView: View {
-    @State private var isFalling = false
-
-    private struct Piece: Identifiable {
-        let id: Int
-        let x: CGFloat
-        let size: CGFloat
-        let delay: Double
-        let color: Color
-        let drift: CGFloat
-    }
-
-    private let pieces: [Piece] = {
-        let colors: [UInt32] = [0x10B981, 0xF59E0B, 0xDB2777, 0x2563EB, 0x7C3AED, 0xEA580C]
-        return (0..<36).map { index in
-            Piece(id: index, x: CGFloat.random(in: 0...1), size: CGFloat.random(in: 6...11),
-                  delay: Double.random(in: 0...0.35), color: Color(hex: colors[index % colors.count]),
-                  drift: CGFloat.random(in: -40...40))
-        }
-    }()
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                ForEach(pieces) { piece in
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(piece.color)
-                        .frame(width: piece.size, height: piece.size * 1.6)
-                        .rotationEffect(.degrees(isFalling ? Double(piece.drift) * 9 : 0))
-                        .position(x: proxy.size.width * piece.x + (isFalling ? piece.drift : 0),
-                                  y: isFalling ? proxy.size.height + 30 : -20)
-                        .opacity(isFalling ? 0 : 1)
-                        .animation(.easeIn(duration: 1.7).delay(piece.delay), value: isFalling)
-                }
-            }
-        }
-        .clipped()
-        .onAppear { isFalling = true }
-        .accessibilityHidden(true)
     }
 }

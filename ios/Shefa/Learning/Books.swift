@@ -81,8 +81,23 @@ final class Book {
     var days: Set<String> { Set(entries.map(\.day)) }
 }
 
+extension Book {
+    /// The celebration for a book that was just read to its last page;
+    /// returns true when it played.
+    @MainActor @discardableResult
+    static func celebrateFinish(_ book: Book, after delay: Double = 0) -> Bool {
+        Moments.shared.play(
+            "book." + book.id, symbol: "book.closed.fill", title: "סיימתם ספר",
+            text: "\(book.title): \(book.totalPages) עמודים, מכריכה לכריכה.",
+            artwork: book.artwork, after: delay)
+    }
+}
+
 /// The bookshelf: what is being read now, how fast, and what was finished.
 struct BooksView: View {
+    /// The color of the bookshelf everywhere in the app.
+    static let artwork = Artwork(0x0891B2, 0x155E75)
+
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Book> { !$0.removed }, sort: \Book.createdAt, order: .reverse)
     private var books: [Book]
@@ -100,17 +115,21 @@ struct BooksView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 hero
+                    .cascade(0)
 
                 if books.isEmpty {
                     emptyState
+                        .cascade(1)
                 }
 
                 if !reading.isEmpty {
                     Text("קוראים עכשיו")
                         .font(.system(size: 22, weight: .heavy))
                         .padding(.horizontal, 4)
+                        .cascade(1)
                     ForEach(reading) { book in
                         BookCard(book: book) { editing = book }
+                            .cascade(2)
                     }
                 }
 
@@ -118,6 +137,8 @@ struct BooksView: View {
                     Text("סיימנו")
                         .font(.system(size: 22, weight: .heavy))
                         .padding(.horizontal, 4)
+                        .cascade(3)
+                    shelf
                     VStack(spacing: 0) {
                         ForEach(finished) { book in
                             Button {
@@ -145,12 +166,13 @@ struct BooksView: View {
                     }
                     .padding(.horizontal, 14)
                     .cardSurface()
+                    .cascade(5)
                 }
             }
             .padding(16)
             .animation(.section, value: books.map(\.page))
         }
-        .background(Theme.ground)
+        .background { AmbientGround(artwork: BooksView.artwork) }
         .navigationTitle("מדף הספרים")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -158,8 +180,68 @@ struct BooksView: View {
                 Button("ספר חדש", systemImage: "plus") { isAdding = true }
             }
         }
+        .arrives()
         .sheet(isPresented: $isAdding) { BookSheet(book: nil) }
         .sheet(item: $editing) { book in BookSheet(book: book) }
+    }
+
+    /// The finished books as spines standing on a shelf, the newest first.
+    private var shelf: some View {
+        VStack(spacing: 0) {
+            ScrollView(.horizontal) {
+                HStack(alignment: .bottom, spacing: 5) {
+                    ForEach(Array(finished.enumerated()), id: \.element.id) { index, book in
+                        Button {
+                            editing = book
+                        } label: {
+                            spine(book)
+                        }
+                        .buttonStyle(.pressable)
+                        .accessibilityLabel(book.title)
+                        .cascade(4 + index)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+            }
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+            // The board the books stand on.
+            Capsule()
+                .fill(Theme.chip)
+                .frame(height: 7)
+        }
+    }
+
+    private func spine(_ book: Book) -> some View {
+        // Every book keeps its own height and thickness.
+        let height: CGFloat = 122 + CGFloat((abs(book.palette) * 7 + book.title.count * 13) % 37)
+        let width: CGFloat = 38 + CGFloat(min(max(book.totalPages, 0), 600)) / 600 * 20
+        return UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 2,
+                                      bottomTrailingRadius: 2, topTrailingRadius: 6, style: .continuous)
+            .fill(book.artwork.gradient)
+            .frame(width: width, height: height)
+            .overlay {
+                Text(book.title)
+                    .font(.system(size: 14, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .frame(width: height - 34, alignment: .leading)
+                    .rotationEffect(.degrees(-90))
+            }
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(.white.opacity(0.4))
+                    .frame(height: 2)
+                    .padding(.top, 9)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(.white.opacity(0.4))
+                    .frame(height: 2)
+                    .padding(.bottom, 9)
+            }
+            .shadow(color: book.artwork.end.opacity(0.35), radius: 6, y: 3)
     }
 
     private var hero: some View {
@@ -186,8 +268,7 @@ struct BooksView: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Theme.blue.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x1E3A8A).opacity(0.4), radius: 20, y: 12)
+        .livingCard(BooksView.artwork, seed: 0.35)
         .accessibilityElement(children: .combine)
     }
 
@@ -284,7 +365,7 @@ struct BookCard: View {
                     Button {
                         withAnimation(.section) { book.setPage(book.page + step) }
                         try? context.save()
-                        if book.isFinished { Feedback.celebrate() } else { Feedback.done() }
+                        if !book.isFinished || !Book.celebrateFinish(book) { Feedback.done() }
                     } label: {
                         Text("+\(step)")
                             .font(.system(size: 15, weight: .bold))
@@ -375,11 +456,14 @@ struct BookSheet: View {
         let total = Int(totalText) ?? 0
         let page = Int(pageText) ?? 0
         if let book {
+            let wasFinished: Bool = book.isFinished
             book.title = name
             book.author = author.trimmingCharacters(in: .whitespaces)
             book.totalPages = total
             book.palette = palette
             if page != book.page { book.setPage(page) }
+            // After the sheet has closed, on the screen behind it.
+            if book.isFinished, !wasFinished { Book.celebrateFinish(book, after: 0.5) }
         } else {
             let new = Book(title: name, author: author.trimmingCharacters(in: .whitespaces),
                            totalPages: total, palette: palette)

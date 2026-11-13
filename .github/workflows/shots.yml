@@ -41,9 +41,12 @@ jobs:
           which xcodegen || brew install xcodegen
           xcodegen generate
           set -o pipefail
+          # One architecture is enough for the simulator, and compiling the
+          # module as a whole reports every error in a single run.
           xcodebuild build -project Shefa.xcodeproj -scheme Shefa -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            EXCLUDED_ARCHS=x86_64 SWIFT_COMPILATION_MODE=wholemodule \
             | tee build.log | grep -E "error:|BUILD" || true
           grep -q "BUILD SUCCEEDED" build.log
 

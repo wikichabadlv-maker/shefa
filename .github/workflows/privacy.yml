@@ -1,0 +1,42 @@
+name: בדיקת פרטיות
+
+# Confirms that the family database shows nothing to a visitor who is not
+# signed in. Only table names and row counts are printed, never any content.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/privacy.yml
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ask for every table without signing in
+        run: |
+          base="https://ezviruxnzstggpminlkt.supabase.co"
+          key="sb_publishable__Pgnn7fcDQU9faQmx8ve2Q_QMDB8355"
+          failed=0
+          for table in bank_transactions transaction_details account_balances sync_runs household_members shared_items; do
+            code=$(curl -sS -m 30 -o body.txt -w "%{http_code}" \
+              -H "apikey: $key" -H "Authorization: Bearer $key" \
+              "$base/rest/v1/$table?select=*&limit=3" || echo "000")
+            size=$(wc -c < body.txt | tr -d ' ')
+            if [ "$code" = "200" ] && [ "$(tr -d ' \n' < body.txt)" = "[]" ]; then
+              echo "$table: closed, no rows are shown"
+            elif [ "$code" = "401" ] || [ "$code" = "403" ] || [ "$code" = "404" ]; then
+              echo "$table: closed, the request is refused ($code)"
+            else
+              echo "::error::$table: answered $code with $size bytes"
+              failed=1
+            fi
+            rm -f body.txt
+          done
+
+          signup=$(curl -sS -m 30 -H "apikey: $key" "$base/auth/v1/settings" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin).get('disable_signup'))" 2>/dev/null || echo "unknown")
+          echo "new sign-ups disabled: $signup"
+          exit $failed

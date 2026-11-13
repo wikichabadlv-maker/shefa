@@ -111,7 +111,7 @@ struct AchievementsView: View {
                         Text("הישגים")
                             .font(.system(size: 15, weight: .semibold))
                             .opacity(0.9)
-                        Text("\(earned) מתוך \(list.count)")
+                        CountUp(value: Double(earned)) { "\(Int($0.rounded())) מתוך \(list.count)" }
                             .font(.system(size: 40, weight: .heavy))
                             .monospacedDigit()
                         Text("נספרים מהפעילות האמיתית שלכם באפליקציה")
@@ -128,54 +128,90 @@ struct AchievementsView: View {
                 }
                 .foregroundStyle(.white)
                 .padding(20)
-                .background(Theme.violet.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .shadow(color: Color(hex: 0x4C1D95).opacity(0.4), radius: 20, y: 12)
+                .livingCard(Theme.violet, seed: 0.8)
                 .accessibilityElement(children: .combine)
+                .cascade(0)
 
                 WeekCard(habits: habits)
+                    .cascade(1)
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
-                    ForEach(list) { item in
-                        tile(item)
+                    ForEach(Array(list.enumerated()), id: \.element.id) { index, item in
+                        tile(item, index: index)
+                            .cascade(2 + index / 2)
                     }
                 }
             }
             .padding(16)
         }
-        .background(Theme.ground)
+        .background { AmbientGround(artwork: Theme.violet) }
         .navigationTitle("הישגים")
         .navigationBarTitleDisplayMode(.inline)
+        .arrives()
     }
 
-    private func tile(_ item: Achievement) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                ArtworkIcon(artwork: item.isEarned ? item.artwork : Artwork(0x94A3B8, 0x64748B),
-                            symbol: item.symbol, size: 40)
-                Spacer()
-                if item.isEarned {
+    /// An earned milestone is a cover in its own color; one still on the way
+    /// stays a quiet card that shows how far it has come.
+    @ViewBuilder
+    private func tile(_ item: Achievement, index: Int) -> some View {
+        if item.isEarned {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: item.symbol)
+                        .font(.system(size: 18, weight: .bold))
+                        .frame(width: 40, height: 40)
+                        .background(.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    Spacer()
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundStyle(Theme.accent)
                 }
+                Text(item.title)
+                    .font(.system(size: 16, weight: .heavy))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                Text(item.text)
+                    .font(.system(size: 12, weight: .medium))
+                    .opacity(0.88)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                GrowBar(share: item.progress, height: 6, track: .white.opacity(0.28),
+                        delay: 0.3 + Double(index) * 0.03, fill: Color.white)
             }
-            Text(item.title)
-                .font(.system(size: 16, weight: .heavy))
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
-            Text(item.text)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            Spacer(minLength: 0)
-            ProgressView(value: item.progress)
-                .tint(item.isEarned ? Theme.accent : item.artwork.start)
+            .foregroundStyle(.white)
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 156, alignment: .leading)
+            .livingCard(item.artwork, radius: 22, seed: Double(index) * 0.37 + 0.1,
+                        watermark: item.symbol, isMoving: false)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isSelected)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    ArtworkIcon(artwork: Artwork(0x94A3B8, 0x64748B), symbol: item.symbol, size: 40)
+                    Spacer()
+                    Text(item.progress, format: .percent.precision(.fractionLength(0)))
+                        .font(.system(size: 13, weight: .heavy))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Text(item.title)
+                    .font(.system(size: 16, weight: .heavy))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                Text(item.text)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                GrowBar(share: item.progress, height: 6, delay: 0.3 + Double(index) * 0.03,
+                        fill: item.artwork.gradient)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 156, alignment: .leading)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 10, y: 6)
+            .accessibilityElement(children: .combine)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 156, alignment: .leading)
-        .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 10, y: 6)
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -183,7 +219,7 @@ struct AchievementsView: View {
 /// each day, and how many tasks were closed.
 struct WeekCard: View {
     let habits: [Habit]
-    @State private var isShown = false
+    @Environment(\.arrived) private var arrived
 
     private var days: [Date] {
         (0..<7).reversed().compactMap { Calendar.current.date(byAdding: .day, value: -$0, to: .now) }
@@ -205,7 +241,7 @@ struct WeekCard: View {
                     .foregroundStyle(.secondary)
             }
             HStack(alignment: .bottom, spacing: 8) {
-                ForEach(days, id: \.self) { day in
+                ForEach(Array(days.enumerated()), id: \.element) { index, day in
                     let value = share(day)
                     let count = done[DayKey.of(day)] ?? 0
                     let isToday = Calendar.current.isDateInToday(day)
@@ -216,9 +252,11 @@ struct WeekCard: View {
                             .foregroundStyle(Theme.accent)
                         ZStack(alignment: .bottom) {
                             Capsule().fill(Theme.chip)
+                            // The columns rise one after another, the oldest day first.
                             Capsule()
                                 .fill(value >= 1 ? Theme.green.gradient : Theme.blue.gradient)
-                                .frame(height: isShown ? max(96 * value, value > 0 ? 14 : 0) : 0)
+                                .frame(height: arrived ? max(96 * value, value > 0 ? 14 : 0) : 0)
+                                .animation(.smooth(duration: 0.7).delay(0.2 + Double(index) * 0.05), value: arrived)
                         }
                         .frame(height: 96)
                         Text(["א", "ב", "ג", "ד", "ה", "ו", "ש"][Calendar.current.component(.weekday, from: day) - 1] + "׳")
@@ -233,8 +271,5 @@ struct WeekCard: View {
         }
         .padding(16)
         .cardSurface()
-        .onAppear {
-            withAnimation(.spring(duration: 0.8, bounce: 0.25).delay(0.15)) { isShown = true }
-        }
     }
 }

@@ -20,6 +20,64 @@ struct ArtworkIcon: View {
     }
 }
 
+/// The round check that starts a list row. It fills at once, with a chime
+/// and a ring of sparks, and the row itself changes a moment later, so the
+/// eye catches the reward before the row moves away.
+struct CheckButton: View {
+    let isDone: Bool
+    var isImportant = false
+    /// Text that belongs to the same touch, for rows that can only be ticked.
+    var title: String? = nil
+    let action: () -> Void
+    @State private var isChecking = false
+    @State private var sparks = 0
+
+    var body: some View {
+        let isOn: Bool = isDone || isChecking
+        Button {
+            press()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 25, weight: isImportant ? .bold : .regular))
+                    .foregroundStyle(isOn ? Theme.accent : (isImportant ? Color(hex: 0xEA580C) : Color.secondary))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 42, height: 48)
+                    .background { SparkBurst(trigger: sparks) }
+                if let title {
+                    Text(title)
+                        .font(.system(size: 17, weight: isOn ? .regular : .semibold))
+                        .strikethrough(isOn)
+                        .foregroundStyle(isOn ? Color.secondary : Color.primary)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 0)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel(title ?? (isDone ? "החזרה לפתוחות" : "סימון כבוצע"))
+        .accessibilityAddTraits(isDone ? .isSelected : [])
+    }
+
+    private func press() {
+        if isDone {
+            Feedback.tap()
+            action()
+            return
+        }
+        guard !isChecking else { return }
+        withAnimation(.snappy) { isChecking = true }
+        sparks += 1
+        Feedback.done()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(0.4))
+            action()
+            isChecking = false
+        }
+    }
+}
+
 /// A bold section title with a chevron, as in Apple Music.
 struct SectionHeader: View {
     let title: String

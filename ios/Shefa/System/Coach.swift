@@ -291,8 +291,10 @@ struct CoachCard: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                    .padding(.vertical, 2)
                 }
                 .scrollIndicators(.hidden)
+                .scrollClipDisabled()
                 .padding(.horizontal, -16)
             }
         }
@@ -379,7 +381,7 @@ struct CoachCard: View {
         .foregroundStyle(.white)
         .padding(14)
         .frame(width: 260, height: 178, alignment: .leading)
-        .background(insight.artwork.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .livingCard(insight.artwork, radius: 22, watermark: insight.symbol, isMoving: false)
         .accessibilityElement(children: .combine)
     }
 }

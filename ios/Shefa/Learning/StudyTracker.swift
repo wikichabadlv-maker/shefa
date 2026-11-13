@@ -157,23 +157,56 @@ enum StudyLog {
     }
 }
 
+extension StudyLog {
+    /// The color of the daily lessons everywhere in the app.
+    static let artwork = Artwork(0x4F46E5, 0x312E81)
+
+    /// Call after a lesson was just marked as learned. When that closed
+    /// today's lessons, or the last lesson that was waiting to be made up,
+    /// the celebration plays; returns true when it did. `wasFull` is how
+    /// that day stood before the mark.
+    @MainActor @discardableResult
+    static func celebrate(on date: Date, wasFull: Bool, after delay: Double = 0) -> Bool {
+        guard !wasFull, isFull(on: date) else { return false }
+        if Calendar.current.isDateInToday(date) {
+            guard tracked.count > 1 else { return false }
+            let streak: Int = fullStreak
+            return Moments.shared.play(
+                "study", symbol: "book.fill", title: "הלימוד היומי הושלם",
+                text: streak > 1 ? "כל שיעורי היום נלמדו. \(streak) ימים ברצף." : "כל שיעורי היום נלמדו.",
+                artwork: artwork, after: delay)
+        }
+        guard gaps().isEmpty else { return false }
+        return Moments.shared.play(
+            "study.gaps", symbol: "checkmark.seal.fill", title: "הכול הושלם",
+            text: "אין עוד שיעורים שמחכים להשלמה.", artwork: artwork, after: delay)
+    }
+}
+
 /// Today's lessons on the home screen: one tap marks a lesson learned, and a
 /// tap on its name opens the finer choices.
 struct DailyStudyCard: View {
     var date: Date = .now
     var opensTracker: (() -> Void)?
+    /// Changes when the screen around the card learned of a change.
+    var refresh = 0
+    /// Tells the screen around the card that a lesson was marked.
+    var onChange: (() -> Void)?
 
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Habit> { $0.id == "habit-chitas" && !$0.removed }) private var chitasHabit: [Habit]
     @State private var version = 0
     @State private var detail: StudyPortion?
-    @State private var celebrates = false
+    /// Rises by one for a lesson each time it is marked, to throw its sparks.
+    @State private var sparks: [String: Int] = [:]
 
     private var portions: [StudyPortion] {
         DailyStudy.portions(on: date).filter { StudyLog.tracked.contains($0.id) }
     }
 
     var body: some View {
+        // The marks live outside SwiftUI; reading the counter redraws the card.
+        let _ = version
         let list = portions
         let doneCount = list.filter { StudyLog.isDone($0.id, on: date) }.count
         VStack(alignment: .leading, spacing: 10) {
@@ -229,11 +262,7 @@ struct DailyStudyCard: View {
         }
         .padding(16)
         .cardSurface()
-        .id(version)
-        .overlay {
-            if celebrates { ConfettiView().allowsHitTesting(false) }
-        }
-        .sheet(item: $detail, onDismiss: { changed(celebrate: true) }) { portion in
+        .sheet(item: $detail, onDismiss: { changed() }) { portion in
             StudyMarkSheet(portion: portion, date: date)
         }
     }
@@ -273,15 +302,22 @@ struct DailyStudyCard: View {
             .accessibilityHint("פירוט: כמה למדתי")
 
             Button {
+                let wasFull: Bool = StudyLog.isFull(on: date)
                 StudyLog.setDone(portion.id, !isDone, on: date)
-                if isDone { Feedback.tap() } else { Feedback.done() }
-                changed(celebrate: !isDone)
+                changed()
+                if isDone {
+                    Feedback.tap()
+                } else {
+                    sparks[portion.id, default: 0] += 1
+                    if !StudyLog.celebrate(on: date, wasFull: wasFull) { Feedback.done() }
+                }
             } label: {
                 Image(systemName: isDone ? "checkmark.circle.fill" : (mark.isEmpty ? "circle" : "circle.lefthalf.filled"))
                     .font(.system(size: 27))
                     .foregroundStyle(isDone ? Theme.accent : (mark.isEmpty ? Color.secondary : Theme.amberInk))
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 46, height: 50)
+                    .background { SparkBurst(trigger: sparks[portion.id] ?? 0) }
                     .contentShape(Rectangle())
             }
             .buttonStyle(.pressable)
@@ -289,7 +325,8 @@ struct DailyStudyCard: View {
         }
     }
 
-    private func changed(celebrate: Bool) {
+    /// Call after a mark changed: redraws, and keeps the rest of the app in step.
+    private func changed() {
         withAnimation(.section) { version += 1 }
         let chitas = [DailyStudy.chumash, DailyStudy.tehillim, DailyStudy.tanya]
         let chitasDone = chitas.allSatisfy { StudyLog.isDone($0, on: date) }
@@ -298,15 +335,8 @@ struct DailyStudyCard: View {
             habit.toggle(on: date)
             try? context.save()
         }
-        if celebrate, StudyLog.isFull(on: date) {
-            Feedback.celebrate()
-            celebrates = true
-            Task {
-                try? await Task.sleep(for: .seconds(2.2))
-                celebrates = false
-            }
-        }
         Notifier.shared.refresh(in: context)
+        onChange?()
     }
 }
 
@@ -385,9 +415,15 @@ struct StudyMarkSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("סיום") {
+                        let wasFull: Bool = StudyLog.isFull(on: date)
                         StudyLog.set(portion.id, mark, on: date)
-                        if mark.parts >= StudyLog.total(portion.id) { Feedback.done() } else { Feedback.tap() }
                         dismiss()
+                        if mark.parts < StudyLog.total(portion.id) {
+                            Feedback.tap()
+                        } else if !StudyLog.celebrate(on: date, wasFull: wasFull, after: 0.5) {
+                            // The celebration waits for the sheet to close; without one, the usual chime.
+                            Feedback.done()
+                        }
                     }
                 }
             }
@@ -479,15 +515,20 @@ struct StudyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 hero(gaps)
-                DailyStudyCard()
-                    .id("today-\(version)")
-                if !gaps.isEmpty { makeUps(gaps) }
+                    .cascade(0)
+                DailyStudyCard(refresh: version, onChange: { withAnimation(.section) { version += 1 } })
+                    .cascade(1)
+                if !gaps.isEmpty {
+                    makeUps(gaps)
+                        .cascade(2)
+                }
                 month
+                    .cascade(3)
             }
             .padding(16)
             .animation(.section, value: version)
         }
-        .background(Theme.ground)
+        .background { AmbientGround(artwork: StudyLog.artwork) }
         .navigationTitle("חת״ת ורמב״ם")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -495,6 +536,7 @@ struct StudyView: View {
                 Button("אילו שיעורים", systemImage: "slider.horizontal.3") { showsChoice = true }
             }
         }
+        .arrives()
         .sheet(item: $detail, onDismiss: { version += 1 }) { gap in
             if let portion = DailyStudy.portions(on: gap.date).first(where: { $0.id == gap.lesson }) {
                 StudyMarkSheet(portion: portion, date: gap.date)
@@ -554,8 +596,7 @@ struct StudyView: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Artwork(0x4F46E5, 0x312E81).gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x312E81).opacity(0.4), radius: 20, y: 12)
+        .livingCard(StudyLog.artwork, seed: 0.5)
         .accessibilityElement(children: .combine)
     }
 
@@ -615,8 +656,9 @@ struct StudyView: View {
             .buttonStyle(.pressable)
 
             Button {
+                let wasFull: Bool = StudyLog.isFull(on: gap.date)
                 StudyLog.setDone(gap.lesson, true, on: gap.date)
-                Feedback.done()
+                if !StudyLog.celebrate(on: gap.date, wasFull: wasFull) { Feedback.done() }
                 withAnimation(.section) { version += 1 }
                 Notifier.shared.refresh(in: context)
             } label: {
@@ -704,6 +746,7 @@ struct StudyDaySheet: View {
                 }
             }
         }
+        .momentHost()
         .presentationDetents([.medium, .large])
         .environment(\.layoutDirection, .rightToLeft)
     }

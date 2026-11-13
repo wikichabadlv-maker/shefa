@@ -24,7 +24,8 @@ targets:
         CFBundleLocalizations: [he]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchGround
         NSCalendarsFullAccessUsageDescription: האפליקציה קוראת את לוח השנה כדי להציג ימי הולדת ואירועים. דבר לא נשלח מהמכשיר.
         NSLocationWhenInUseUsageDescription: המיקום משמש רק לחישוב זמני היום במקום שבו אתם נמצאים.
         UISupportedInterfaceOrientations:

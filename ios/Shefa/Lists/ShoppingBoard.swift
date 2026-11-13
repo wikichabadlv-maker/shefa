@@ -53,7 +53,9 @@ struct ShoppingBoard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             hero
+                .cascade(0)
             addBar
+                .cascade(1)
 
             if !due.isEmpty {
                 dueCard
@@ -131,8 +133,7 @@ struct ShoppingBoard: View {
         }
         .foregroundStyle(.white)
         .padding(20)
-        .background(Theme.green.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color(hex: 0x047857).opacity(0.4), radius: 20, y: 12)
+        .livingCard(Theme.green, seed: 0.7)
         .accessibilityElement(children: .combine)
     }
 
@@ -282,26 +283,7 @@ struct ShoppingBoard: View {
 
     private func row(_ item: ListItem) -> some View {
         HStack(spacing: 4) {
-            Button {
-                toggle(item)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 25))
-                        .foregroundStyle(item.isDone ? Theme.accent : Color.secondary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: 42, height: 48)
-                    Text(item.title)
-                        .font(.system(size: 17, weight: item.isDone ? .regular : .semibold))
-                        .strikethrough(item.isDone)
-                        .foregroundStyle(item.isDone ? Color.secondary : Color.primary)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 0)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.pressable)
-            .accessibilityAddTraits(item.isDone ? .isSelected : [])
+            CheckButton(isDone: item.isDone, title: item.title) { toggle(item) }
 
             Button {
                 withAnimation(.section) {
@@ -376,20 +358,20 @@ struct ShoppingBoard: View {
         }
     }
 
+    /// The check button has already given the tap and the chime.
     private func toggle(_ item: ListItem) {
         let wasLast = !item.isDone && open.count == 1
+        let count = items.count
         withAnimation(.section) {
             item.isDone.toggle()
             item.doneAt = item.isDone ? .now : nil
             item.updatedAt = .now
         }
         save()
-        if wasLast {
-            Feedback.celebrate()
-        } else if item.isDone {
-            Feedback.done()
-        } else {
-            Feedback.tap()
+        // A real shopping trip, not a single carton of milk.
+        if wasLast, count >= 3 {
+            Moments.shared.play("shopping", symbol: "cart.fill", title: "הכול בעגלה",
+                                text: "\(count) מוצרים, ואף אחד לא נשכח.", artwork: Theme.green)
         }
     }
 
@@ -431,8 +413,9 @@ struct ShoppingScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
         }
-        .background(Theme.ground)
+        .background { AmbientGround(artwork: Theme.green) }
         .navigationTitle("רשימת קניות")
+        .arrives()
         .refreshable { await SharedSync.shared.run(in: context) }
     }
 }

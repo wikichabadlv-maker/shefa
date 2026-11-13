@@ -60,6 +60,9 @@ enum Launch {
 
     /// Scroll position for long screens: "top" or a named anchor.
     static let anchor = UserDefaults.standard.string(forKey: "anchor") ?? ""
+
+    /// How long the opening curtain stays before it lifts. A test run has none.
+    static let curtain: Double = screen.isEmpty ? 0.75 : 0
 }
 
 /// Lets one screen send the user to a specific place in another.
