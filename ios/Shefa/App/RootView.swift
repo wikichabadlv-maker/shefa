@@ -70,6 +70,9 @@ struct RootView: View {
         .fullScreenCover(isPresented: $router.isClosingDay) {
             CloseDayFlow()
         }
+        .fullScreenCover(isPresented: $router.isRoutinePlaying) {
+            RoutinePlayer()
+        }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
             FocusTimer.shared.tick(now: now)
             // Anything changed on this phone reaches the cloud within a minute.
@@ -83,6 +86,7 @@ struct RootView: View {
             } else {
                 // The app may have slept through midnight.
                 startDay()
+                RoutineRun.shared.dropIfStale()
             }
         }
         .task {
@@ -96,6 +100,12 @@ struct RootView: View {
             if Launch.screen.hasPrefix("close-day") { router.isClosingDay = true }
             if Launch.screen == "quick" { router.isQuickAdding = true }
             if Launch.screen == "now" { router.isNowPlaying = true }
+            if Launch.screen == "routine", let first = Routines.shared.all.first {
+                // A test run opens in the middle of the second step.
+                RoutineRun.shared.start(first, now: Date.now.addingTimeInterval(-26 * 60))
+                _ = RoutineRun.shared.finish(done: true, now: Date.now.addingTimeInterval(-9 * 60))
+                router.isRoutinePlaying = true
+            }
             if Launch.screen == "moment" {
                 Moments.shared.show(symbol: "checkmark", title: "היום הושלם",
                                     text: "כל מה שתוכנן להיום נעשה. 4 ימים ברצף.", artwork: Theme.blue)

@@ -192,12 +192,8 @@ struct TasksView: View {
         let left: [ListItem] = leftovers
         let finished: [ListItem] = doneToday
         let minute: Int = ScheduleItem.minute(of: now)
-        let isWorkDay: Bool = !plan.kind.isRest
-        let canPlan: Bool = isWorkDay && plan.load != .closed && !DayJournal.isPlannedToday && !open.isEmpty
-            && (minute < 13 * 60 || plan.tasks.isEmpty)
-        let canClose: Bool = isWorkDay && !DayJournal.isClosedToday
-            && (minute >= plan.closing - 90 || plan.load == .closed)
-            && (!finished.isEmpty || !plan.tasks.isEmpty)
+        let canPlan: Bool = plan.offersPlanning(minute: minute, hasOpen: !open.isEmpty)
+        let canClose: Bool = plan.offersClosing(minute: minute, hasDone: !finished.isEmpty)
         let planDay: (() -> Void)? = canPlan ? { router.isPlanningDay = true } : nil
         let closeDay: (() -> Void)? = canClose ? { router.isClosingDay = true } : nil
         VStack(alignment: .leading, spacing: 18) {

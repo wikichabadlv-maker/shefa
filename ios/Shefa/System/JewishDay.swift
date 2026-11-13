@@ -26,6 +26,15 @@ struct JewishDay {
     let isRoshChodesh: Bool
     /// A day with a name of its own that is neither a festival nor a fast.
     let special: String?
+    /// The day of Chanukah, from 1 to 8, when this is one.
+    let chanukahDay: Int?
+
+    /// The number of the Chanukah light kindled toward the evening of this
+    /// day: the first on the eve of Chanukah, and none on its last day.
+    var chanukahCandle: Int? {
+        if let chanukahDay { return chanukahDay < 8 ? chanukahDay + 1 : nil }
+        return month == Month.kislev && day == 24 ? 1 : nil
+    }
 
     var isShabbat: Bool { weekday == 7 }
     /// Shabbat or a festival: no work, no tasks, no reminders.
@@ -125,7 +134,9 @@ struct JewishDay {
             || (month == Month.nisan && (16...20).contains(day))
         self.fast = JewishDay.fast(month: month, day: day, weekday: weekday)
         self.isRoshChodesh = (day == 1 && month != Month.tishrei) || day == 30
-        self.special = JewishDay.special(month: month, day: day, isLeap: isLeap, date: noon, year: parts.year ?? 0)
+        let chanukah: Int? = JewishDay.chanukah(month: month, day: day, date: noon, year: parts.year ?? 0)
+        self.chanukahDay = chanukah
+        self.special = JewishDay.special(month: month, day: day, isLeap: isLeap, chanukah: chanukah)
     }
 
     private static func yomTov(month: Int, day: Int) -> String? {
@@ -155,17 +166,22 @@ struct JewishDay {
         }
     }
 
-    private static func special(month: Int, day: Int, isLeap: Bool, date: Date, year: Int) -> String? {
-        // Chanukah runs eight days from the 25th of Kislev, into Tevet.
-        if (month == Month.kislev && day >= 25) || (month == Month.tevet && day <= 3) {
-            let hebrew: Calendar = JewishDay.hebrew
-            if let first = hebrew.date(from: DateComponents(year: year, month: Month.kislev, day: 25, hour: 12)) {
-                let passed: Int = Calendar.current.dateComponents(
-                    [.day], from: Calendar.current.startOfDay(for: first),
-                    to: Calendar.current.startOfDay(for: date)).day ?? -1
-                if (0...7).contains(passed) { return "חנוכה · נר \(JewishDay.ordinals[passed])" }
-            }
+    /// Chanukah runs eight days from the 25th of Kislev, into Tevet.
+    private static func chanukah(month: Int, day: Int, date: Date, year: Int) -> Int? {
+        guard (month == Month.kislev && day >= 25) || (month == Month.tevet && day <= 3) else { return nil }
+        let hebrew: Calendar = JewishDay.hebrew
+        guard let first = hebrew.date(from: DateComponents(year: year, month: Month.kislev, day: 25, hour: 12)) else {
+            return nil
         }
+        let passed: Int = Calendar.current.dateComponents(
+            [.day], from: Calendar.current.startOfDay(for: first),
+            to: Calendar.current.startOfDay(for: date)).day ?? -1
+        return (0...7).contains(passed) ? passed + 1 : nil
+    }
+
+    private static func special(month: Int, day: Int, isLeap: Bool, chanukah: Int?) -> String? {
+        // The days of Chanukah are called by their number, and the last by its own name.
+        if let chanukah { return chanukah == 8 ? "זאת חנוכה" : "\(JewishDay.letters[chanukah - 1])׳ דחנוכה" }
         switch (month, day) {
         case (Month.tishrei, 6): return "ו׳ תשרי"
         case (Month.tishrei, 9): return "ערב יום הכיפורים"
@@ -177,6 +193,7 @@ struct JewishDay {
         case (Month.kislev, 14): return "י״ד כסלו"
         case (Month.kislev, 19): return "י״ט כסלו · חג הגאולה"
         case (Month.kislev, 20): return "כ׳ כסלו · חג הגאולה"
+        case (Month.kislev, 24): return "ערב חנוכה"
         case (Month.tevet, 5): return "ה׳ טבת · דידן נצח"
         case (Month.tevet, 24): return "כ״ד טבת"
         case (Month.shevat, 10): return "יו״ד שבט"
@@ -206,4 +223,10 @@ struct JewishDay {
     }
 
     private static let ordinals = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שביעי", "שמיני"]
+    private static let letters = ["א", "ב", "ג", "ד", "ה", "ו", "ז", "ח"]
+
+    /// "ראשון" for 1, up to "שמיני" for 8.
+    static func ordinal(_ number: Int) -> String {
+        ordinals[min(max(number, 1), 8) - 1]
+    }
 }

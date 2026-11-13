@@ -35,15 +35,17 @@ struct HomeView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text(Self.dateLine)
-                        .font(.system(size: 13, weight: .heavy))
-                        .foregroundStyle(Theme.accent)
+                    dateHeader
                         .padding(.horizontal, 4)
                         .padding(.bottom, -14)
                         .cascade(0)
 
-                    shortcuts
-                        .cascade(1)
+                    VStack(alignment: .leading, spacing: 0) {
+                        shortcuts
+                        // Takes no room at all when the moment asks for nothing.
+                        NowRow(selection: $selection)
+                    }
+                    .cascade(1)
 
                     RenewBanner()
                     BackupBanner()
@@ -376,10 +378,30 @@ struct HomeView: View {
         }
     }
 
-    /// For example "יום חמישי · ב׳ בכסלו · 12 בנובמבר".
+    /// For example "יום חמישי · 12 בנובמבר · ב׳ בכסלו": the civil date
+    /// leads, and the Hebrew one follows it.
     private static var dateLine: String {
         let day = Date.now.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
-        return "\(HebrewDate.weekday()) · \(HebrewDate.text()) · \(day)"
+        return "\(HebrewDate.weekday()) · \(day) · \(HebrewDate.text())"
+    }
+
+    /// The date, and under it the name of the day when it has one.
+    private var dateHeader: some View {
+        let name: String? = JewishDay.of().title
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(Self.dateLine)
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundStyle(Theme.accent)
+            if let name {
+                Label(name, systemImage: "sparkles")
+                    .font(.system(size: 12, weight: .heavy))
+                    .foregroundStyle(Theme.amberInk)
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .background(Theme.amberGround, in: Capsule())
+                    .lineLimit(1)
+            }
+        }
     }
 }
 

@@ -163,7 +163,9 @@ struct ZmanimCard: View {
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
             let _ = finder.version
             let now = timeline.date
-            let zmanim = Zmanim(city: City.find(cityID), day: now)
+            // Once the last of today's times has passed, tomorrow's are shown.
+            let zmanim = Zmanim.showing(city: City.find(cityID), at: now)
+            let isTomorrow: Bool = !Calendar.current.isDate(zmanim.day, inSameDayAs: now)
             let next = zmanim.next(after: now, mainOnly: true)
             let upcoming = Array(zmanim.list.filter { $0.isMain && $0.date > now }.dropFirst().prefix(3))
             NavigationLink {
@@ -179,8 +181,9 @@ struct ZmanimCard: View {
                                 .lineLimit(1)
                             Text(next.map { item -> String in
                                 let minutes = max(Int(item.date.timeIntervalSince(now) / 60), 0)
-                                return "בעוד \(NowStatus.duration(minutes)) · \(zmanim.city.name)"
-                            } ?? "זמני מחר יופיעו אחרי חצות · \(zmanim.city.name)")
+                                let day: String = isTomorrow ? "מחר · " : ""
+                                return "\(day)בעוד \(NowStatus.duration(minutes)) · \(zmanim.city.name)"
+                            } ?? zmanim.city.name)
                                 .font(.system(size: 13))
                                 .foregroundStyle(Color.secondary)
                                 .lineLimit(1)

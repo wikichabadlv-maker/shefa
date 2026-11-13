@@ -119,6 +119,12 @@ jobs:
               if [ -n "$mood" ]; then name="$name-$mood"; fi
               name="$name$tag"
               xcrun simctl io "$device" screenshot "shots/$name$1.png"
+              # A launch that was slow shows the opening color alone, and
+              # such a picture is tiny: wait and take it again.
+              if [ "$(stat -f%z "shots/$name$1.png")" -lt 300000 ]; then
+                sleep 8
+                xcrun simctl io "$device" screenshot "shots/$name$1.png"
+              fi
               sips -Z 1500 "shots/$name$1.png" >/dev/null
             done
           }

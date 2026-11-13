@@ -9,6 +9,7 @@ enum DemoData {
         // Kept in memory only, so every demo launch sets them again.
         FinancePlan.shared.fillDemo()
         BankState.shared.fillDemo()
+        fillRoutines()
         let existing = (try? context.fetchCount(FetchDescriptor<ListItem>())) ?? 0
         guard existing == 0 else { return }
 
@@ -126,6 +127,17 @@ enum DemoData {
         fillHistory(context)
         fillBank(context)
         try? context.save()
+    }
+
+    /// The ready-made routines, and on a day that ends in candle lighting, a
+    /// board whose first two things are already behind.
+    private static func fillRoutines() {
+        let store = Routines.shared
+        if store.all.isEmpty {
+            for template in Routines.templates { _ = store.add(template: template) }
+        }
+        guard JewishDay.of(.now).isEve, ErevBoard.done().isEmpty, let erev = store.forCandles else { return }
+        for step in erev.steps.prefix(2) { ErevBoard.setDone(step.id, true) }
     }
 
     /// A few weeks of the daily practices: mostly kept, a miss here and there,

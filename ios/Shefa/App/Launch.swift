@@ -9,7 +9,7 @@ enum Launch {
     static var tab: AppTab {
         if screen.hasPrefix("finance") { return .finance }
         switch screen {
-        case "schedule", "routine", "erev": return .schedule
+        case "schedule", "routine", "routine-edit", "routines", "erev": return .schedule
         case "tasks", "task-stuck", "plan-day", "plan-day-pick", "plan-day-first",
              "close-day", "close-day-left", "close-day-next": return .tasks
         case "notes", "achievements", "settings", "zmanim", "books", "study": return .more
@@ -113,13 +113,26 @@ final class AppRouter {
     /// The morning sitting that builds the day, and the evening one that closes it.
     var isPlanningDay = false
     var isClosingDay = false
+    /// The full screen of a routine that is being played.
+    var isRoutinePlaying = false
 
     /// Where a tapped reminder leads.
     func open(_ place: String) {
+        let routine = "routine:"
+        if place.hasPrefix(routine) {
+            // The reminder said it is time to begin: a tap begins.
+            let id: String = String(place.dropFirst(routine.count))
+            if RoutineRun.shared.routine?.id != id, let found = Routines.shared.all.first(where: { $0.id == id }) {
+                RoutineRun.shared.start(found.remaining())
+            }
+            isRoutinePlaying = RoutineRun.shared.isActive
+            return
+        }
         switch place {
         case "plan": isPlanningDay = true
         case "close": isClosingDay = true
         case "now": isNowPlaying = true
+        case "routine": isRoutinePlaying = RoutineRun.shared.isActive
         default: break
         }
     }

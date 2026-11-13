@@ -117,11 +117,12 @@ struct Zmanim {
                 // the night, and are lit from a flame that is already burning.
                 add("candles", "הדלקת נרות · לא לפני", nightfall, "flame.fill", main: true)
             } else if let set {
-                var name = "הדלקת נרות"
-                if kind.next.isShabbat {
-                    name = kind.next.yomTov == nil ? "הדלקת נרות שבת" : "הדלקת נרות שבת וחג"
-                } else if kind.next.fast == nil {
-                    name = "הדלקת נרות חג"
+                let coming: JewishDay = kind.next
+                var name = "הדלקת נרות חג"
+                if coming.fast != nil {
+                    name = coming.isShabbat ? "הדלקת נרות שבת ויום הכיפורים" : "הדלקת נרות יום הכיפורים"
+                } else if coming.isShabbat {
+                    name = coming.yomTov == nil ? "הדלקת נרות שבת" : "הדלקת נרות שבת וחג"
                 }
                 add("candles", name, set.addingTimeInterval(Double(-city.candles) * 60), "flame.fill", main: true)
             }

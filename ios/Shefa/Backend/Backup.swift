@@ -171,6 +171,7 @@ final class Backup {
         }
         try? context.save()
         FinancePlan.shared.load()
+        Routines.shared.load()
     }
 
     // MARK: Cloud

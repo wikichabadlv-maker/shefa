@@ -3,9 +3,9 @@ import SwiftData
 import UserNotifications
 
 /// Local reminders: the start of each part of the day, the first step the
-/// family set for itself, the two sittings, and the halachic times they
-/// chose to be reminded of. Few, and none from candle lighting until
-/// Shabbat or a festival is out.
+/// family set for itself, the two sittings, a routine that has to begin
+/// now to end in time, and the halachic times they chose to be reminded
+/// of. Few, and none from candle lighting until Shabbat or a festival is out.
 @MainActor
 final class Notifier {
     static let shared = Notifier()
@@ -15,7 +15,8 @@ final class Notifier {
         let date: Date
         let title: String
         let body: String
-        /// Where a tap on it leads: "plan", "close", "now", or nowhere.
+        /// Where a tap on it leads: "plan", "close", "now", "routine:" with
+        /// the routine's id, or nowhere.
         var open: String = ""
     }
 
@@ -135,6 +136,8 @@ final class Notifier {
             }
         }
 
+        planned += routineRequests(now: now)
+
         // What must not be lost waits for the holy day to be out.
         for item in Signing.reminders(now: now) + CalendarFeed.shared.reminders(now: now) {
             var date: Date = item.0
@@ -156,12 +159,37 @@ final class Notifier {
             content.sound = .default
             if !item.open.isEmpty {
                 content.userInfo = ["open": item.open]
-                content.categoryIdentifier = "shefa-" + item.open
+                // The buttons go by the kind of place, not by which one it is.
+                content.categoryIdentifier = "shefa-" + String(item.open.prefix { $0 != ":" })
             }
             let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: item.date)
             let trigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
             try? await center.add(UNNotificationRequest(identifier: "shefa-\(index)", content: content, trigger: trigger))
         }
+    }
+
+    /// A routine the family asked to be reminded of says when to begin so as
+    /// to end in time: five minutes before the last minute that still works,
+    /// on its own days, and not on a day it was already begun.
+    private func routineRequests(now: Date) -> [Planned] {
+        let calendar = Calendar.current
+        var result: [Planned] = []
+        for routine in Routines.shared.all where routine.reminds {
+            for offset in 0..<5 {
+                guard let day = calendar.date(byAdding: .day, value: offset, to: now),
+                      let start = routine.startBy(on: day) else { continue }
+                if offset == 0, RoutineRun.played(on: day).contains(routine.id) { continue }
+                let minute: Int = max(start - 5, 0)
+                guard let date = calendar.date(bySettingHour: minute / 60, minute: minute % 60, second: 0, of: day),
+                      date > now else { continue }
+                var body: String = "כדי לסיים עד \(ScheduleItem.clock(routine.goalMinute ?? 0)) מתחילים ב־\(ScheduleItem.clock(start)). \(routine.summary)."
+                if routine.isForCandles {
+                    body = "כדי להספיק עד הדלקת הנרות מתחילים ב־\(ScheduleItem.clock(start)). נשארו \(NowStatus.duration(routine.left(on: day))) של הכנות."
+                }
+                result.append(Planned(date: date, title: routine.title, body: body, open: "routine:" + routine.id))
+            }
+        }
+        return result
     }
 
     /// The coach's own reminders: a morning brief, the first step of the
@@ -294,6 +322,27 @@ final class Notifier {
     func cancelFocusEnd() {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["shefa-focus"])
     }
+
+    /// A single signal for the moment a routine's step runs out of its
+    /// time, with a button that moves on to the next step. None inside
+    /// Shabbat or a festival.
+    nonisolated static func scheduleStepEnd(at date: Date, title: String, body: String) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["shefa-step"])
+        guard date.timeIntervalSinceNow > 1, !isHolyTime(date) else { return }
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.userInfo = ["open": "routine"]
+        content.categoryIdentifier = "shefa-step"
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: date.timeIntervalSinceNow, repeats: false)
+        center.add(UNNotificationRequest(identifier: "shefa-step", content: content, trigger: trigger))
+    }
+
+    nonisolated static func cancelStepEnd() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["shefa-step"])
+    }
 }
 
 /// Shows reminders also while the app is open, and takes the user where a
@@ -302,7 +351,8 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationPresenter()
 
     /// The buttons under a reminder: straight into the sitting it speaks of,
-    /// or ten more minutes before the first step.
+    /// ten more minutes before the first step, and, under the signal that a
+    /// routine's step is over, on to the next step without opening the app.
     static func registerActions() {
         let plan = UNNotificationAction(identifier: "plan", title: "לבנות את היום", options: [.foreground])
         let close = UNNotificationAction(identifier: "close", title: "לסגור את היום", options: [.foreground])
@@ -312,6 +362,11 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
             UNNotificationCategory(identifier: "shefa-plan", actions: [plan], intentIdentifiers: []),
             UNNotificationCategory(identifier: "shefa-close", actions: [close], intentIdentifiers: []),
             UNNotificationCategory(identifier: "shefa-now", actions: [start, later], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "shefa-routine", actions: [start, later], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "shefa-step", actions: [
+                UNNotificationAction(identifier: "step-done", title: "סיימתי, הלאה", options: []),
+                UNNotificationAction(identifier: "step-more", title: "עוד חמש דקות", options: []),
+            ], intentIdentifiers: []),
         ])
     }
 
@@ -319,7 +374,18 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
         let place: String = content.userInfo["open"] as? String ?? ""
-        if response.actionIdentifier == "later" {
+        if response.actionIdentifier == "step-done" || response.actionIdentifier == "step-more" {
+            // Done here and now, before the app goes back to sleep.
+            let isDone: Bool = response.actionIdentifier == "step-done"
+            let work: () -> Void = {
+                if isDone {
+                    _ = RoutineRun.shared.finish(done: true)
+                } else {
+                    RoutineRun.shared.extend(minutes: 5)
+                }
+            }
+            if Thread.isMainThread { work() } else { DispatchQueue.main.sync(execute: work) }
+        } else if response.actionIdentifier == "later" {
             // The same reminder once more, ten minutes on.
             let again = UNMutableNotificationContent()
             again.title = content.title

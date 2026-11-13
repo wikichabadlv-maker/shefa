@@ -48,27 +48,46 @@ struct ScheduleView: View {
     private func content(now: Date) -> some View {
         // The screen wears the colors of the sky at this hour.
         let sky: Sky = isToday ? Sky.now(now) : Sky.midday
-        return ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                DayStrip(day: $day, artwork: sky.artwork)
-                    .cascade(0)
-                DayHero(items: todays, day: day, now: now, isToday: isToday, sky: sky)
-                    .cascade(1)
-                QuickScheduleBar(day: day, todays: todays)
-                    .cascade(2)
-                CalendarDayCard(day: day)
-                    .cascade(3)
-                timeline(now: now)
-                    .cascade(4)
-                if isToday {
-                    HabitsCard()
+        // On a day that ends in candle lighting, the hours before them lead.
+        let showsErev: Bool = isToday && JewishDay.of(now).isEve
+        let name: String? = showsErev ? nil : JewishDay.of(day).title
+        return ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    DayStrip(day: $day, artwork: sky.artwork)
+                        .cascade(0)
+                    if showsErev {
+                        ErevCard(now: now)
+                            .cascade(1)
+                    }
+                    DayHero(items: todays, day: day, now: now, isToday: isToday, sky: sky, name: name)
+                        .cascade(1)
+                    QuickScheduleBar(day: day, todays: todays)
+                        .cascade(2)
+                    CalendarDayCard(day: day)
+                        .cascade(3)
+                    timeline(now: now)
+                        .cascade(4)
+                    RoutineShelf()
                         .cascade(5)
+                        .id("routines")
+                    if isToday {
+                        HabitsCard()
+                            .cascade(6)
+                            .id("habits")
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+            .background { AmbientGround(artwork: sky.artwork) }
+            .task {
+                // A test run opens the screen at a named place.
+                guard !Launch.anchor.isEmpty else { return }
+                try? await Task.sleep(for: .seconds(1.5))
+                proxy.scrollTo(Launch.anchor, anchor: .top)
+            }
         }
-        .background { AmbientGround(artwork: sky.artwork) }
     }
 
     // MARK: Timeline
@@ -217,8 +236,16 @@ struct DayHero: View {
     let now: Date
     let isToday: Bool
     var sky: Sky = .midday
+    /// The name of the day, when it has one and nothing above says it already.
+    var name: String? = nil
 
     private var done: Int { items.filter { $0.isDone(on: day) }.count }
+
+    /// The civil date leads, and the Hebrew one follows it.
+    private var dateLine: String {
+        let civil: String = day.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
+        return "\(HebrewDate.weekday(day)) · \(civil) · \(HebrewDate.text(day))"
+    }
 
     private var headline: String {
         if items.isEmpty { return "יום פתוח" }
@@ -240,9 +267,21 @@ struct DayHero: View {
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("\(HebrewDate.weekday(day)) · \(HebrewDate.text(day))")
+                if let name {
+                    Text(name)
+                        .font(.system(size: 12, weight: .heavy))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 9)
+                        .frame(height: 22)
+                        .background(.white.opacity(0.2), in: Capsule())
+                        .padding(.bottom, 2)
+                }
+                Text(dateLine)
                     .font(.system(size: 14, weight: .bold))
                     .opacity(0.9)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(headline)
                     .font(.system(size: 30, weight: .heavy))
                     .minimumScaleFactor(0.7)
@@ -335,11 +374,17 @@ struct SkyHeader: View {
             let minutes = max(Int(next.date.timeIntervalSince(now) / 60), 0)
             return (next.title, "בעוד \(NowStatus.duration(minutes)) · \(zmanim.clock(next.date))")
         }
-        return ("לילה טוב", "זמני מחר יופיעו אחרי חצות")
+        // The day's times are behind: the first of tomorrow's is next.
+        let coming: Zmanim = Zmanim.showing(city: zmanim.city, at: now)
+        if let next = coming.next(after: now, mainOnly: true) {
+            return ("לילה טוב", "\(next.title) מחר ב־\(coming.clock(next.date))")
+        }
+        return ("לילה טוב", "")
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let name: String? = JewishDay.of(zmanim.day).title
+        return VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("\(HebrewDate.weekday(zmanim.day)) · \(HebrewDate.text(zmanim.day))")
                     .font(.system(size: 15, weight: .bold))
@@ -347,6 +392,15 @@ struct SkyHeader: View {
                 Text(zmanim.day.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide)))
                     .font(.system(size: 14, weight: .semibold))
                     .opacity(0.85)
+            }
+            if let name {
+                Text(name)
+                    .font(.system(size: 13, weight: .heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .padding(.horizontal, 10)
+                    .frame(height: 24)
+                    .background(.white.opacity(0.18), in: Capsule())
             }
             SunArc(share: isToday ? share : 0.5, showsSun: isToday)
                 .frame(height: 156)

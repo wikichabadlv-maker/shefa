@@ -480,6 +480,22 @@ struct DayPlan {
                        isClosed: isToday && DayJournal.isClosedToday)
     }
 
+    // MARK: The day's two sittings
+
+    /// Whether the morning sitting is worth offering at this minute: a
+    /// working day that was not built yet, with something to build it from.
+    func offersPlanning(minute: Int, hasOpen: Bool) -> Bool {
+        !kind.isRest && load != .closed && !DayJournal.isPlannedToday && hasOpen
+            && (minute < 13 * 60 || tasks.isEmpty)
+    }
+
+    /// Whether the evening sitting is worth offering at this minute: from an
+    /// hour and a half before the day closes, when there is something to look back on.
+    func offersClosing(minute: Int, hasDone: Bool) -> Bool {
+        !kind.isRest && !DayJournal.isClosedToday && (minute >= closing - 90 || load == .closed)
+            && (hasDone || !tasks.isEmpty)
+    }
+
     // MARK: In words
 
     /// One sentence that says how the day stands.
