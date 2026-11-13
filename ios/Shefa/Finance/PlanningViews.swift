@@ -374,7 +374,16 @@ struct SavingsList: View {
     private var savingsHero: some View {
         let share = totalTarget > 0 ? min((totalSaved / totalTarget).double, 1) : 0
         let monthly = goals.reduce(Decimal(0)) { $0 + ($1.left > 0 ? ($1.monthlyNeeded ?? 0) : 0) }
-        let rate = month.income > 0 ? (month.saved / month.income).double : 0
+        // What went aside this month: the funds' own deposit logs, or the
+        // savings lines of the ledger when those say more. The same money
+        // can show in both, so the two are never added together.
+        let key: String = Forecast.monthKey(.now)
+        var logged = Decimal(0)
+        for goal in goals {
+            for item in goal.deposits where item.month == key { logged += item.amount }
+        }
+        let went: Decimal = max(logged, month.saved)
+        let rate = month.income > 0 ? (went / month.income).double : 0
         let line: String
         if goals.isEmpty {
             line = "יעד אחד ברור עם סכום ותאריך שווה יותר מכוונה טובה."
@@ -406,7 +415,7 @@ struct SavingsList: View {
                     }
             }
             HStack(spacing: 0) {
-                stat("נכנס החודש", Money.text(month.saved))
+                stat("נכנס החודש", Money.text(went))
                 Divider().frame(height: 28).overlay(.white.opacity(0.3))
                 stat("מההכנסה", rate.formatted(.percent.precision(.fractionLength(0))))
                 Divider().frame(height: 28).overlay(.white.opacity(0.3))
@@ -621,32 +630,38 @@ struct GoalSheet: View {
                             .listRowBackground(Color.clear)
                     }
                     Section {
-                        ScrollView(.horizontal) {
-                            HStack(spacing: 8) {
-                                ForEach(quickAmounts(goal), id: \.self) { value in
-                                    Button {
-                                        move(value, sign: 1, goal: goal)
-                                    } label: {
-                                        Text(Money.text(value, showPlus: true))
-                                            .font(.system(size: 16, weight: .heavy))
-                                            .monospacedDigit()
-                                            .foregroundStyle(.white)
-                                            .padding(.horizontal, 16)
-                                            .frame(height: 44)
-                                            .background(goal.artwork.gradient, in: Capsule())
+                        // One row, so the three parts sit together as a
+                        // single control with no table lines between them.
+                        VStack(spacing: 10) {
+                            ScrollView(.horizontal) {
+                                HStack(spacing: 8) {
+                                    ForEach(quickAmounts(goal), id: \.self) { value in
+                                        Button {
+                                            move(value, sign: 1, goal: goal)
+                                        } label: {
+                                            Text(Money.text(value, showPlus: true))
+                                                .font(.system(size: 16, weight: .heavy))
+                                                .monospacedDigit()
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 16)
+                                                .frame(height: 44)
+                                                .background(goal.artwork.gradient, in: Capsule())
+                                        }
+                                        .buttonStyle(.pressable)
                                     }
-                                    .buttonStyle(.pressable)
                                 }
                             }
-                        }
-                        .scrollIndicators(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
-                        TextField("סכום אחר", text: $moveText)
-                            .keyboardType(.numberPad)
-                        HStack(spacing: 10) {
-                            moveButton("הפקדה", symbol: "plus", sign: 1, goal: goal)
-                            moveButton("משיכה", symbol: "minus", sign: -1, goal: goal)
+                            .scrollIndicators(.hidden)
+                            TextField("סכום אחר", text: $moveText)
+                                .keyboardType(.numberPad)
+                                .font(.system(size: 17, weight: .semibold))
+                                .padding(.horizontal, 18)
+                                .frame(height: 48)
+                                .background(Theme.card, in: Capsule())
+                            HStack(spacing: 10) {
+                                moveButton("הפקדה", symbol: "plus", sign: 1, goal: goal)
+                                moveButton("משיכה", symbol: "minus", sign: -1, goal: goal)
+                            }
                         }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
