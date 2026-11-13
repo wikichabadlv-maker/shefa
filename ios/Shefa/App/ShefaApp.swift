@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UserNotifications
 
 @main
 struct ShefaApp: App {
@@ -8,7 +9,7 @@ struct ShefaApp: App {
     static let container: ModelContainer = {
         let schema = Schema([
             LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self,
-            CustomSub.self, ScheduleItem.self,
+            CustomSub.self, ScheduleItem.self, Habit.self,
         ])
         do {
             return try ModelContainer(for: schema)
@@ -26,6 +27,10 @@ struct ShefaApp: App {
     }()
 
     @AppStorage("appearance") private var appearance = "system"
+
+    init() {
+        UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+    }
 
     private var scheme: ColorScheme? {
         switch appearance {

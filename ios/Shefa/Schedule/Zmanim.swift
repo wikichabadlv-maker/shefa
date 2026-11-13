@@ -12,26 +12,41 @@ struct City: Identifiable, Hashable {
 
     var timeZone: TimeZone { TimeZone(identifier: zone) ?? .current }
 
+    /// The first one is the default.
     static let all: [City] = [
+        City(id: "kiryat-gat", name: "קריית גת", latitude: 31.610, longitude: 34.764, zone: "Asia/Jerusalem", candles: 20),
         City(id: "jerusalem", name: "ירושלים", latitude: 31.778, longitude: 35.235, zone: "Asia/Jerusalem", candles: 40),
-        City(id: "kfar-chabad", name: "כפר חב״ד", latitude: 31.989, longitude: 34.852, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "tel-aviv", name: "תל אביב", latitude: 32.080, longitude: 34.780, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "bnei-brak", name: "בני ברק", latitude: 32.084, longitude: 34.834, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "lod", name: "לוד", latitude: 31.951, longitude: 34.888, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "haifa", name: "חיפה", latitude: 32.794, longitude: 34.990, zone: "Asia/Jerusalem", candles: 30),
-        City(id: "tzfat", name: "צפת", latitude: 32.965, longitude: 35.496, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "kiryat-malachi", name: "נחלת הר חב״ד", latitude: 31.730, longitude: 34.745, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "beitar", name: "ביתר עילית", latitude: 31.697, longitude: 35.116, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "ashdod", name: "אשדוד", latitude: 31.804, longitude: 34.655, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "beer-sheva", name: "באר שבע", latitude: 31.252, longitude: 34.791, zone: "Asia/Jerusalem", candles: 18),
-        City(id: "eilat", name: "אילת", latitude: 29.558, longitude: 34.948, zone: "Asia/Jerusalem", candles: 18),
+        City(id: "kfar-chabad", name: "כפר חב״ד", latitude: 31.989, longitude: 34.852, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "tel-aviv", name: "תל אביב", latitude: 32.080, longitude: 34.780, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "bnei-brak", name: "בני ברק", latitude: 32.084, longitude: 34.834, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "lod", name: "לוד", latitude: 31.951, longitude: 34.888, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "haifa", name: "חיפה", latitude: 32.794, longitude: 34.990, zone: "Asia/Jerusalem", candles: 22),
+        City(id: "tzfat", name: "צפת", latitude: 32.965, longitude: 35.496, zone: "Asia/Jerusalem", candles: 22),
+        City(id: "kiryat-malachi", name: "נחלת הר חב״ד", latitude: 31.730, longitude: 34.745, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "beitar", name: "ביתר עילית", latitude: 31.697, longitude: 35.116, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "ashdod", name: "אשדוד", latitude: 31.804, longitude: 34.655, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "beer-sheva", name: "באר שבע", latitude: 31.252, longitude: 34.791, zone: "Asia/Jerusalem", candles: 20),
+        City(id: "eilat", name: "אילת", latitude: 29.558, longitude: 34.948, zone: "Asia/Jerusalem", candles: 20),
         City(id: "new-york", name: "ניו יורק", latitude: 40.669, longitude: -73.943, zone: "America/New_York", candles: 18),
     ]
 
     static let storageKey = "cityID"
+    /// The choice that follows the iPhone's own location.
+    static let deviceID = "device"
+
+    /// The last place the iPhone reported, if location was ever allowed.
+    static var device: City? {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: "deviceLatitude") != nil else { return nil }
+        return City(id: deviceID, name: defaults.string(forKey: "deviceName") ?? "המיקום שלי",
+                    latitude: defaults.double(forKey: "deviceLatitude"),
+                    longitude: defaults.double(forKey: "deviceLongitude"),
+                    zone: TimeZone.current.identifier, candles: 20)
+    }
 
     static func find(_ id: String) -> City {
-        all.first { $0.id == id } ?? all[0]
+        if id == deviceID, let device { return device }
+        return all.first { $0.id == id } ?? all[0]
     }
 
     static var current: City {

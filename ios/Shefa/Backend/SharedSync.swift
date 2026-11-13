@@ -24,6 +24,13 @@ struct SharedPayload: Codable {
     var startMinute: Int?
     var duration: Int?
     var weekdays: Int?
+    var dueMs: Int64?
+    var priority: Int?
+    var minutes: Int?
+    var repeatRule: String?
+    var todayDay: String?
+    var onlyDay: String?
+    var doneDays: String?
 }
 
 private struct SharedRow: Codable {
@@ -136,17 +143,28 @@ final class SharedSync {
                 if let row {
                     item.title = row.data.title ?? item.title
                     item.isDone = row.data.isDone ?? item.isDone
+                    item.due = row.data.dueMs.map(Self.date)
+                    item.priority = row.data.priority ?? 0
+                    item.minutes = row.data.minutes ?? 0
+                    item.note = row.data.note
+                    item.repeatRule = row.data.repeatRule ?? ""
+                    item.todayDay = row.data.todayDay ?? ""
                     item.removed = false
                     item.updatedAt = Self.date(row.updated_ms)
                 }
             case .deleteLocal:
                 context.delete(item)
             case .upload:
-                outgoing.append(SharedRow(
-                    id: item.id, kind: "list",
-                    data: SharedPayload(title: item.title, isDone: item.isDone, listKind: item.kind,
-                                        createdMs: Self.stamp(item.createdAt)),
-                    deleted: item.removed, updated_ms: Self.stamp(item.updatedAt)))
+                var payload = SharedPayload(title: item.title, isDone: item.isDone, listKind: item.kind,
+                                            createdMs: Self.stamp(item.createdAt))
+                payload.dueMs = item.due.map(Self.stamp)
+                payload.priority = item.priority
+                payload.minutes = item.minutes
+                payload.note = item.note
+                payload.repeatRule = item.repeatRule
+                payload.todayDay = item.todayDay
+                outgoing.append(SharedRow(id: item.id, kind: "list", data: payload,
+                                          deleted: item.removed, updated_ms: Self.stamp(item.updatedAt)))
             case .keep:
                 break
             }
@@ -155,6 +173,12 @@ final class SharedSync {
             let item = ListItem(kind: row.data.listKind ?? ListItem.task, title: row.data.title ?? "")
             item.id = row.id
             item.isDone = row.data.isDone ?? false
+            item.due = row.data.dueMs.map(Self.date)
+            item.priority = row.data.priority ?? 0
+            item.minutes = row.data.minutes ?? 0
+            item.note = row.data.note
+            item.repeatRule = row.data.repeatRule ?? ""
+            item.todayDay = row.data.todayDay ?? ""
             if let created = row.data.createdMs { item.createdAt = Self.date(created) }
             item.updatedAt = Self.date(row.updated_ms)
             context.insert(item)
@@ -255,6 +279,8 @@ final class SharedSync {
                     item.weekdays = row.data.weekdays ?? item.weekdays
                     item.symbol = row.data.symbol ?? item.symbol
                     item.palette = row.data.palette ?? item.palette
+                    item.onlyDay = row.data.onlyDay ?? ""
+                    item.doneDays = row.data.doneDays ?? item.doneDays
                     item.removed = false
                     item.updatedAt = Self.date(row.updated_ms)
                 }
@@ -262,6 +288,8 @@ final class SharedSync {
                 context.delete(item)
             case .upload:
                 var payload = SharedPayload(title: item.title, symbol: item.symbol, palette: item.palette)
+                payload.onlyDay = item.onlyDay
+                payload.doneDays = item.doneDays
                 payload.startMinute = item.startMinute
                 payload.duration = item.durationMinutes
                 payload.weekdays = item.weekdays
@@ -276,6 +304,8 @@ final class SharedSync {
                 id: row.id, title: row.data.title ?? "", startMinute: row.data.startMinute ?? 480,
                 durationMinutes: row.data.duration ?? 60, weekdays: row.data.weekdays ?? ScheduleItem.weekdaysMask,
                 symbol: row.data.symbol ?? "clock.fill", palette: row.data.palette ?? 0)
+            item.onlyDay = row.data.onlyDay ?? ""
+            item.doneDays = row.data.doneDays ?? ""
             item.updatedAt = Self.date(row.updated_ms)
             context.insert(item)
         }

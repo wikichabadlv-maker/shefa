@@ -89,6 +89,8 @@ struct NotesView: View {
                         editText = item.title
                         editing = item
                     }
+                    Button("הפיכה למטלה", systemImage: "checklist") { promote(item, to: ListItem.task) }
+                    Button("לרשימת הקניות", systemImage: "cart") { promote(item, to: ListItem.shopping) }
                     Button("מחיקה", systemImage: "trash", role: .destructive) {
                         withAnimation(.snappy) {
                             item.removed = true
@@ -120,6 +122,19 @@ struct NotesView: View {
         }
         saveAndShare()
         draft = ""
+    }
+
+    /// Turns a note into a task or a shopping item, in one tap.
+    private func promote(_ item: ListItem, to target: String) {
+        let created = ListItem(kind: target, title: item.title)
+        if target == ListItem.task { created.todayDay = DayKey.of() }
+        withAnimation(.snappy) {
+            context.insert(created)
+            item.removed = true
+            item.updatedAt = .now
+        }
+        saveAndShare()
+        Feedback.added()
     }
 
     private func saveEdit() {

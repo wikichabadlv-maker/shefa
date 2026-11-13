@@ -9,7 +9,23 @@ struct SettingsView: View {
     @State private var password = ""
     @State private var isWorking = false
     @State private var signInError: String?
-    @AppStorage(City.storageKey) private var cityID = City.all[0].id
+    @AppStorage(City.storageKey) private var cityID = ""
+    @AppStorage(Feedback.soundsKey) private var soundsOn = true
+    @AppStorage(Notifier.scheduleKey) private var notifySchedule = true
+    @AppStorage(Notifier.tasksKey) private var notifyTasks = true
+    @AppStorage(Notifier.candlesKey) private var notifyCandles = true
+    @AppStorage(Notifier.shmaKey) private var notifyShma = false
+    @AppStorage(Notifier.sunsetKey) private var notifySunset = false
+    @State private var finder = LocationFinder.shared
+    @State private var notificationsBlocked = false
+
+    private func remindersChanged() {
+        Task {
+            let allowed = await Notifier.shared.askPermission()
+            notificationsBlocked = !allowed
+            Notifier.shared.refresh(in: context)
+        }
+    }
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("givesChomesh") private var givesChomesh = false
 
@@ -81,15 +97,46 @@ struct SettingsView: View {
             }
 
             Section {
-                Picker("עיר", selection: $cityID) {
-                    ForEach(City.all) { city in
-                        Text(city.name).tag(city.id)
+                CityPicker()
+                if cityID == City.deviceID {
+                    if finder.isWorking {
+                        Label("מאתרים את המיקום…", systemImage: "location.fill")
+                    } else if let problem = finder.problem {
+                        Text(problem).foregroundStyle(Theme.amberInk)
+                    } else {
+                        Button("עדכון המיקום עכשיו", systemImage: "location.fill") { finder.refresh() }
                     }
                 }
             } header: {
                 Text("זמני היום")
             } footer: {
-                Text("הזמנים מחושבים לפי שיטת אדמו״ר הזקן.")
+                Text("הזמנים מחושבים לפי שיטת אדמו״ר הזקן. המיקום נשמר במכשיר בלבד.")
+            }
+
+            Section {
+                Toggle("תחילת כל חלק בלו״ז", isOn: $notifySchedule)
+                Toggle("מטלות שהגיע זמנן (8:30 בבוקר)", isOn: $notifyTasks)
+                Toggle("40 דקות לפני הדלקת נרות", isOn: $notifyCandles)
+                Toggle("חצי שעה לפני סוף זמן קריאת שמע", isOn: $notifyShma)
+                Toggle("חצי שעה לפני השקיעה", isOn: $notifySunset)
+            } header: {
+                Text("תזכורות")
+            } footer: {
+                if notificationsBlocked {
+                    Text("ההתראות כבויות לאפליקציה. אפשר להפעיל אותן בהגדרות האייפון, תחת שפע.")
+                }
+            }
+            .onChange(of: [notifySchedule, notifyTasks, notifyCandles, notifyShma, notifySunset]) { _, _ in
+                remindersChanged()
+            }
+            .onChange(of: cityID) { _, _ in
+                Notifier.shared.refresh(in: context)
+            }
+
+            Section {
+                Toggle("צלילים", isOn: $soundsOn)
+            } footer: {
+                Text("צליל קצר כשמסיימים מטלה או יום שלם. כשהאייפון על שקט מרגישים רק רטט.")
             }
 
             Section("כספים") {

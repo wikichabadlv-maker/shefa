@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 private enum AreaKind: String {
-    case shopping, notes, learning, achievements, assistant, settings
+    case zmanim, shopping, notes, learning, achievements, assistant, settings
 }
 
 private struct AppArea: Identifiable {
@@ -27,6 +27,7 @@ struct MoreView: View {
     private var entries: [LedgerEntry]
 
     private let areas = [
+        AppArea(kind: .zmanim, title: "זמני היום", subtitle: "לוח הזמנים ההלכתי", symbol: "sun.horizon.fill", artwork: Artwork(0x0EA5E9, 0x4F46E5)),
         AppArea(kind: .shopping, title: "רשימת קניות", subtitle: "משותפת לשניכם", symbol: "cart.fill", artwork: Theme.pink),
         AppArea(kind: .notes, title: "לזכור", subtitle: "פתקים ודברים חשובים", symbol: "lightbulb.fill", artwork: Theme.amber),
         AppArea(kind: .learning, title: "לימוד וחידושים", subtitle: "מה למדנו ומה חידשנו", symbol: "book.fill", artwork: Theme.blue),
@@ -102,6 +103,8 @@ struct MoreView: View {
             NotesView(kind: ListItem.learning, title: "לימוד וחידושים", placeholder: "מה למדתי? מה התחדש לי?",
                       emptyTitle: "עוד אין רשומות", emptyText: "כתבו נקודה מהשיעור, חידוש, או מה מתכננים ללמוד.",
                       symbol: "book.fill")
+        case .zmanim:
+            ZmanimView()
         case .achievements:
             AchievementsView()
         case .settings:

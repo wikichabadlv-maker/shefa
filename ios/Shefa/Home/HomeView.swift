@@ -20,6 +20,11 @@ struct HomeView: View {
     private var month: MonthSummary { Ledger.summary(counted) }
     private var question: LedgerEntry? { counted.first { $0.needsAnswer } }
     private var recent: [LedgerEntry] { Array(entries.prefix(4)) }
+    /// Today's tasks first; when none were picked, the newest open ones.
+    private var todayTasks: [ListItem] {
+        let picked = tasks.filter(\.isForToday)
+        return picked.isEmpty ? tasks : picked
+    }
 
     var body: some View {
         NavigationStack {
@@ -53,8 +58,10 @@ struct HomeView: View {
                             .transition(.opacity)
                     }
 
-                    TodayCard(selection: $selection)
+                    ZmanimCard()
                         .id("today")
+
+                    HabitsCard()
 
                     insights
 
@@ -154,17 +161,12 @@ struct HomeView: View {
 
     private var tasksPreview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "מטלות פתוחות") { selection = .tasks }
+            SectionHeader(title: "המטלות של היום") { selection = .tasks }
             VStack(spacing: 0) {
-                ForEach(tasks.prefix(3)) { item in
+                ForEach(todayTasks.prefix(3)) { item in
                     Button {
-                        withAnimation(.snappy) {
-                            item.isDone = true
-                            item.doneAt = .now
-                            item.updatedAt = .now
-                        }
-                        try? context.save()
-                        SharedSync.shared.changed(in: context)
+                        withAnimation(.snappy) { TaskRules.setDone(item, true, in: context) }
+                        Feedback.done()
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "circle")
@@ -181,15 +183,15 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityHint("סימון כבוצע")
-                    if item.id != tasks.prefix(3).last?.id {
+                    if item.id != todayTasks.prefix(3).last?.id {
                         Divider().padding(.leading, 34)
                     }
                 }
             }
             .padding(.horizontal, 14)
             .cardSurface()
-            if tasks.count > 3 {
-                Text("ועוד \(tasks.count - 3) מטלות")
+            if tasks.count > todayTasks.prefix(3).count {
+                Text("ועוד \(tasks.count - todayTasks.prefix(3).count) מטלות פתוחות")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
@@ -277,67 +279,6 @@ struct HomeView: View {
     private static var dateLine: String {
         let day = Date.now.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
         return "\(HebrewDate.weekday()) · \(HebrewDate.text()) · \(day)"
-    }
-}
-
-/// Today in one card: what is on now and the next times of the day.
-struct TodayCard: View {
-    @Binding var selection: AppTab
-    @Query(filter: #Predicate<ScheduleItem> { !$0.removed }, sort: \ScheduleItem.startMinute)
-    private var items: [ScheduleItem]
-    @AppStorage(City.storageKey) private var cityID = ""
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            let now = timeline.date
-            let zmanim = Zmanim(city: City.find(cityID), day: now)
-            let status = NowStatus.make(items: items, now: now)
-            let upcoming = Array(zmanim.list.filter { $0.isMain && $0.date > now }.prefix(3))
-            Button {
-                selection = .schedule
-            } label: {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
-                        ArtworkIcon(artwork: status.artwork, symbol: status.symbol)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(status.title)
-                                .font(.system(size: 17, weight: .heavy))
-                                .foregroundStyle(Color.primary)
-                                .lineLimit(1)
-                            Text(status.detail)
-                                .font(.system(size: 13))
-                                .foregroundStyle(Color.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.forward")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color.secondary)
-                    }
-                    if !upcoming.isEmpty {
-                        HStack(spacing: 8) {
-                            ForEach(upcoming) { zman in
-                                VStack(spacing: 2) {
-                                    Text(zmanim.clock(zman.date))
-                                        .font(.system(size: 16, weight: .heavy))
-                                        .monospacedDigit()
-                                    Text(zman.title)
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.7)
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                                .foregroundStyle(Theme.amberInk)
-                                .background(Theme.amberGround, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            }
-                        }
-                    }
-                }
-                .padding(14)
-                .cardSurface()
-            }
-            .buttonStyle(.plain)
-        }
     }
 }
 

@@ -8,9 +8,23 @@ enum DemoData {
         let existing = (try? context.fetchCount(FetchDescriptor<ListItem>())) ?? 0
         guard existing == 0 else { return }
 
-        for title in ["להזמין תור לרופא שיניים", "לשלם ועד בית", "לקנות מתנה לבר מצווה", "להחזיר ספר לספרייה"] {
-            context.insert(ListItem(kind: ListItem.task, title: title))
+        let today = Calendar.current.startOfDay(for: .now)
+        for (index, title) in ["להזמין תור לרופא שיניים", "לשלם ועד בית", "לקנות מתנה לבר מצווה",
+                               "להחזיר ספר לספרייה", "לחדש ביטוח רכב"].enumerated() {
+            let item = ListItem(kind: ListItem.task, title: title)
+            if index < 2 { item.due = today }
+            if index == 0 { item.priority = 1; item.minutes = 10 }
+            if index == 2 { item.due = Calendar.current.date(byAdding: .day, value: 3, to: today) }
+            if index == 3 { item.due = Calendar.current.date(byAdding: .day, value: -1, to: today); item.repeatRule = "weekly" }
+            context.insert(item)
         }
+        let finished = ListItem(kind: ListItem.task, title: "לשלוח טופס למעון")
+        finished.isDone = true
+        finished.doneAt = .now
+        context.insert(finished)
+        if Stats.doneToday == 0 { Stats.addDone(1) }
+        let habits = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
+        for habit in habits.prefix(2) where !habit.isDone() { habit.toggle() }
         for title in ["חלב", "ביצים", "חלות לשבת", "נרות"] {
             context.insert(ListItem(kind: ListItem.shopping, title: title))
         }

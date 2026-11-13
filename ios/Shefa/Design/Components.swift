@@ -45,30 +45,40 @@ struct SectionHeader: View {
     }
 }
 
-/// What is on now, or the next time of the day, floating above the tab bar
-/// on every screen. Tapping it opens the schedule; the bolt adds anything.
+/// What is on now in the family's schedule, floating above the tab bar on
+/// every screen like a mini player. Tapping it opens the full screen.
 struct NowTaskBar: View {
-    @Binding var selection: AppTab
     @Query(filter: #Predicate<ScheduleItem> { !$0.removed }, sort: \ScheduleItem.startMinute)
     private var items: [ScheduleItem]
-    @AppStorage(City.storageKey) private var cityID = ""
+    @Query(filter: #Predicate<ListItem> { $0.kind == "task" && !$0.removed && !$0.isDone },
+           sort: \ListItem.createdAt, order: .reverse)
+    private var tasks: [ListItem]
+    @State private var timer = FocusTimer.shared
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { timeline in
-            let status = NowStatus.make(items: items, now: timeline.date)
+        TimelineView(.periodic(from: .now, by: timer.isRunning ? 1 : 30)) { timeline in
+            let now = timeline.date
+            let top = tasks.first(where: \.isForToday)?.title
+            let status = NowStatus.make(items: items, topTask: top, now: now)
+            let title = timer.isActive ? timer.title : status.title
+            let detail = timer.isActive
+                ? (timer.isRunning ? "מיקוד · נשארו \(FocusTimer.clock(timer.remaining(at: now)))" : "מיקוד מושהה")
+                : status.detail
+            let share = timer.isActive ? timer.progress(at: now) : (status.progress ?? 0)
             HStack(spacing: 10) {
                 Button {
-                    selection = .schedule
+                    AppRouter.shared.isNowPlaying = true
                 } label: {
                     HStack(spacing: 10) {
-                        ArtworkIcon(artwork: status.artwork, symbol: status.symbol, size: 32)
+                        ArtworkIcon(artwork: status.artwork, symbol: timer.isActive ? "timer" : status.symbol, size: 32)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(status.title)
+                            Text(title)
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(Color.primary)
                                 .lineLimit(1)
-                            Text(status.detail)
+                            Text(detail)
                                 .font(.system(size: 12))
+                                .monospacedDigit()
                                 .foregroundStyle(Color.secondary)
                                 .lineLimit(1)
                         }
@@ -77,6 +87,7 @@ struct NowTaskBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint("פתיחת מסך מלא")
                 Button {
                     AppRouter.shared.isQuickAdding = true
                 } label: {
@@ -87,7 +98,18 @@ struct NowTaskBar: View {
                 .accessibilityLabel("הוספה מהירה")
             }
             .padding(.horizontal, 12)
-            .id(cityID)
+            .overlay(alignment: .bottom) {
+                if share > 0 {
+                    GeometryReader { proxy in
+                        Capsule()
+                            .fill(Theme.accent)
+                            .frame(width: proxy.size.width * share, height: 2.5)
+                    }
+                    .frame(height: 2.5)
+                    .padding(.horizontal, 18)
+                    .environment(\.layoutDirection, .leftToRight)
+                }
+            }
         }
     }
 }

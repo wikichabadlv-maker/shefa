@@ -188,7 +188,10 @@ struct QuickAddSheet: View {
             dismiss()
         } else {
             guard !title.isEmpty else { return }
-            context.insert(ListItem(kind: kind.listKind, title: title))
+            let created = ListItem(kind: kind.listKind, title: title)
+            if kind == .task { created.todayDay = DayKey.of() }
+            context.insert(created)
+            Feedback.added()
             try? context.save()
             SharedSync.shared.changed(in: context)
             savedCount += 1

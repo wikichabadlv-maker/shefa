@@ -25,6 +25,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        NSLocationWhenInUseUsageDescription: המיקום משמש רק לחישוב זמני היום במקום שבו אתם נמצאים.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     settings:

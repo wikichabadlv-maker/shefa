@@ -17,6 +17,10 @@ final class ScheduleItem {
     var createdAt: Date
     var updatedAt: Date = Date.now
     var removed: Bool = false
+    /// When set, the item happens on this one day only (a `DayKey`).
+    var onlyDay: String = ""
+    /// The days on which it was marked as done, as `DayKey`s joined by commas.
+    var doneDays: String = ""
 
     init(id: String = UUID().uuidString, title: String, startMinute: Int, durationMinutes: Int,
          weekdays: Int = ScheduleItem.weekdaysMask, symbol: String = "clock.fill", palette: Int = 0) {
@@ -46,11 +50,28 @@ final class ScheduleItem {
         weekdays & (1 << (weekday - 1)) != 0
     }
 
+    func isOn(_ date: Date) -> Bool {
+        if !onlyDay.isEmpty { return onlyDay == DayKey.of(date) }
+        return isOn(weekday: Calendar.current.component(.weekday, from: date))
+    }
+
+    func isDone(on date: Date = .now) -> Bool {
+        DayKey.split(doneDays).contains(DayKey.of(date))
+    }
+
+    func setDone(_ done: Bool, on date: Date = .now) {
+        var days = DayKey.split(doneDays)
+        if done { days.insert(DayKey.of(date)) } else { days.remove(DayKey.of(date)) }
+        doneDays = DayKey.join(days, keep: 60)
+        updatedAt = .now
+    }
+
     var timeText: String {
         "\(ScheduleItem.clock(startMinute))–\(ScheduleItem.clock(endMinute))"
     }
 
     var daysText: String {
+        if !onlyDay.isEmpty { return "חד פעמי" }
         if weekdays == ScheduleItem.everyDay { return "כל יום" }
         if weekdays == ScheduleItem.weekdaysMask { return "ימים א׳ עד ו׳" }
         if weekdays == 0b0011111 { return "ימים א׳ עד ה׳" }
@@ -69,56 +90,54 @@ final class ScheduleItem {
     }
 }
 
-/// What is happening now, for the floating bar and the Home screen.
+/// What is happening now in the family's own schedule, for the floating bar.
 struct NowStatus {
     let title: String
     let detail: String
     let symbol: String
     let artwork: Artwork
+    /// The schedule item behind it, when there is one.
+    var item: ScheduleItem?
+    /// From 0 to 1 while an item is in progress.
+    var progress: Double?
 
-    static func make(items: [ScheduleItem], now: Date = .now) -> NowStatus {
-        let weekday = Calendar.current.component(.weekday, from: now)
-        let minute = ScheduleItem.minute(of: now)
-        let today = items.filter { !$0.removed && $0.isOn(weekday: weekday) }.sorted { $0.startMinute < $1.startMinute }
-
-        if let current = today.first(where: { $0.startMinute <= minute && minute < $0.endMinute }) {
-            return NowStatus(
-                title: current.title,
-                detail: "עכשיו בלו״ז · נשארו \(duration(current.endMinute - minute))",
-                symbol: current.symbol, artwork: current.artwork)
-        }
-        let zmanim = Zmanim(day: now)
-        let nextZman = zmanim.next(after: now, mainOnly: true)
-        if let next = today.first(where: { $0.startMinute > minute }) {
-            let wait = next.startMinute - minute
-            if let nextZman, nextZman.date.timeIntervalSince(now) / 60 < Double(wait) {
-                return zmanStatus(nextZman, zmanim: zmanim, now: now)
-            }
-            return NowStatus(
-                title: next.title,
-                detail: "מתחיל בעוד \(duration(wait)) · \(ScheduleItem.clock(next.startMinute))",
-                symbol: next.symbol, artwork: next.artwork)
-        }
-        if let nextZman {
-            return zmanStatus(nextZman, zmanim: zmanim, now: now)
-        }
-        return NowStatus(title: "לילה טוב", detail: "אין עוד דברים בלו״ז להיום",
-                         symbol: "moon.stars.fill", artwork: Theme.violet)
+    static func today(_ items: [ScheduleItem], on date: Date = .now) -> [ScheduleItem] {
+        items.filter { !$0.removed && $0.isOn(date) }.sorted { $0.startMinute < $1.startMinute }
     }
 
-    private static func zmanStatus(_ zman: Zman, zmanim: Zmanim, now: Date) -> NowStatus {
-        let minutes = max(Int(zman.date.timeIntervalSince(now) / 60), 0)
-        return NowStatus(
-            title: zman.title,
-            detail: "בעוד \(duration(minutes)) · \(zmanim.clock(zman.date)) · \(zmanim.city.name)",
-            symbol: zman.symbol, artwork: Theme.amber)
+    static func make(items: [ScheduleItem], topTask: String? = nil, now: Date = .now) -> NowStatus {
+        let minute = ScheduleItem.minute(of: now)
+        let list = today(items, on: now)
+
+        if let current = list.first(where: { $0.startMinute <= minute && minute < $0.endMinute }) {
+            let share = Double(minute - current.startMinute) / Double(max(current.durationMinutes, 1))
+            return NowStatus(
+                title: current.title,
+                detail: "עכשיו · נשארו \(duration(current.endMinute - minute))",
+                symbol: current.symbol, artwork: current.artwork, item: current, progress: share)
+        }
+        if let next = list.first(where: { $0.startMinute > minute }) {
+            return NowStatus(
+                title: next.title,
+                detail: "הבא בתור · בעוד \(duration(next.startMinute - minute)) · \(ScheduleItem.clock(next.startMinute))",
+                symbol: next.symbol, artwork: next.artwork, item: next)
+        }
+        if let topTask {
+            return NowStatus(title: topTask, detail: "המטלה הבאה שלך", symbol: "checklist", artwork: Theme.emerald)
+        }
+        if list.isEmpty {
+            return NowStatus(title: "היום פנוי", detail: "הקישו כדי לבנות את היום",
+                             symbol: "sparkles", artwork: Theme.emerald)
+        }
+        return NowStatus(title: "סיימנו להיום", detail: "אין עוד דברים בלו״ז",
+                         symbol: "moon.stars.fill", artwork: Theme.violet)
     }
 
     static func duration(_ minutes: Int) -> String {
         if minutes < 60 { return "\(minutes) דק׳" }
         let hours = minutes / 60
         let rest = minutes % 60
-        if rest == 0 { return hours == 1 ? "שעה" : "\(hours) שעות" }
+        if rest == 0 { return hours == 1 ? "שעה" : (hours == 2 ? "שעתיים" : "\(hours) שעות") }
         return "\(hours):\(String(format: "%02d", rest)) שעות"
     }
 }

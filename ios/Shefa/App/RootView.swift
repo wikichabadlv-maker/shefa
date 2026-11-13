@@ -1,4 +1,5 @@
 import SwiftData
+import Combine
 import SwiftUI
 
 enum AppTab: Hashable {
@@ -24,10 +25,7 @@ struct RootView: View {
                 FinanceView()
             }
             Tab("מטלות", systemImage: "checklist", value: AppTab.tasks) {
-                NavigationStack {
-                    CheckListView(kind: ListItem.task, title: "מטלות", placeholder: "מטלה חדשה",
-                                  emptyText: "כתבו מטלה ולחצו על סיום במקלדת כדי להוסיף אותה.")
-                }
+                TasksView()
             }
             Tab(value: AppTab.more, role: .search) {
                 MoreView()
@@ -35,16 +33,28 @@ struct RootView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory {
-            NowTaskBar(selection: $selection)
+            NowTaskBar()
         }
         .sheet(isPresented: $router.isQuickAdding) {
             QuickAddSheet()
         }
+        .sheet(isPresented: $router.isNowPlaying) {
+            NowPlayingView()
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            FocusTimer.shared.tick(now: now)
+        }
         .task {
             ExcelImport.importIfNeeded(in: context)
             Ledger.removeExampleGoals(in: context)
+            Habit.addDefaultsIfNeeded(in: context)
             if Launch.demo { DemoData.fill(context) }
             if Launch.screen == "quick" { router.isQuickAdding = true }
+            if Launch.screen == "now" { router.isNowPlaying = true }
+            if UserDefaults.standard.string(forKey: City.storageKey) == City.deviceID {
+                LocationFinder.shared.refresh()
+            }
+            Notifier.shared.refresh(in: context)
             await Backend.shared.sync(into: context)
         }
     }
@@ -53,5 +63,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(\.layoutDirection, .rightToLeft)
-        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self, CustomSub.self, ScheduleItem.self], inMemory: true)
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self, CustomSub.self, ScheduleItem.self, Habit.self], inMemory: true)
 }

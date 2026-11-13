@@ -1,26 +1,19 @@
 import SwiftData
 import SwiftUI
 
-/// The day at a glance: the sun's path, the halachic times and the family's
-/// own fixed parts of the day on one timeline.
+/// The family's own day: the fixed parts they set, one-time items, and what
+/// was already done. Halachic times live on their own screen.
 struct ScheduleView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<ScheduleItem> { !$0.removed }, sort: \ScheduleItem.startMinute)
     private var items: [ScheduleItem]
-    @AppStorage(City.storageKey) private var cityID = ""
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var editing: ScheduleItem?
     @State private var draft: ScheduleDraft?
-    @State private var showsAllTimes = Launch.anchor == "times"
-
-    private var city: City { City.find(cityID) }
 
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
 
-    private var todays: [ScheduleItem] {
-        let weekday = Calendar.current.component(.weekday, from: day)
-        return items.filter { $0.isOn(weekday: weekday) }
-    }
+    private var todays: [ScheduleItem] { NowStatus.today(items, on: day) }
 
     var body: some View {
         NavigationStack {
@@ -35,40 +28,28 @@ struct ScheduleView: View {
                         draft = ScheduleDraft()
                     }
                 }
-                ToolbarItem(placement: .topBarLeading) {
-                    Menu {
-                        Picker("עיר", selection: $cityID) {
-                            ForEach(City.all) { item in
-                                Text(item.name).tag(item.id)
-                            }
-                        }
-                    } label: {
-                        Text(city.name)
-                            .font(.system(size: 15, weight: .bold))
-                    }
-                }
             }
             .sheet(item: $editing) { item in
-                ScheduleEditor(item: item, draft: ScheduleDraft(item))
+                ScheduleEditor(item: item, draft: ScheduleDraft(item), day: day)
             }
             .sheet(item: $draft) { value in
-                ScheduleEditor(item: nil, draft: value)
+                ScheduleEditor(item: nil, draft: value, day: day)
             }
         }
     }
 
     private func content(now: Date) -> some View {
-        let moment = isToday ? now : day.addingTimeInterval(12 * 3600)
-        let zmanim = Zmanim(city: city, day: moment)
-        return ScrollView {
+        ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 DayStrip(day: $day)
-                SunCard(zmanim: zmanim, now: now, isToday: isToday)
-                timeline(zmanim: zmanim, now: now)
+                DayHero(items: todays, day: day, now: now, isToday: isToday)
+                if isToday {
+                    HabitsCard()
+                }
+                timeline(now: now)
                 if items.isEmpty {
                     starters
                 }
-                allTimes(zmanim: zmanim, now: now)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)
@@ -77,107 +58,95 @@ struct ScheduleView: View {
 
     // MARK: Timeline
 
-    private struct Row: Identifiable {
-        let id: String
-        let minute: Int
-        let endMinute: Int
-        let title: String
-        let detail: String
-        let symbol: String
-        let artwork: Artwork
-        let item: ScheduleItem?
-    }
-
-    private func rows(zmanim: Zmanim) -> [Row] {
-        var result = todays.map { item in
-            Row(id: item.id, minute: item.startMinute, endMinute: item.endMinute, title: item.title,
-                detail: NowStatus.duration(item.durationMinutes), symbol: item.symbol,
-                artwork: item.artwork, item: item)
-        }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = zmanim.city.timeZone
-        for zman in zmanim.list where zman.isMain {
-            let parts = calendar.dateComponents([.hour, .minute], from: zman.date)
-            let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
-            result.append(Row(id: "zman-" + zman.id, minute: minute, endMinute: minute, title: zman.title,
-                              detail: "", symbol: zman.symbol, artwork: Theme.amber, item: nil))
-        }
-        return result.sorted { $0.minute < $1.minute }
-    }
-
-    private func timeline(zmanim: Zmanim, now: Date) -> some View {
-        let list = rows(zmanim: zmanim)
+    private func timeline(now: Date) -> some View {
+        let list = todays
         let minute = ScheduleItem.minute(of: now)
         return VStack(alignment: .leading, spacing: 10) {
             Text(isToday ? "סדר היום" : "סדר היום ב\(HebrewDate.weekday(day))")
                 .font(.system(size: 22, weight: .heavy))
                 .padding(.horizontal, 4)
-            VStack(spacing: 0) {
-                ForEach(list) { row in
-                    let isPast = isToday && row.endMinute <= minute && row.item != nil
-                        || isToday && row.item == nil && row.minute < minute
-                    let isNow = isToday && row.item != nil && row.minute <= minute && minute < row.endMinute
-                    if let item = row.item {
-                        Button {
-                            editing = item
-                        } label: {
-                            timelineRow(row, isPast: isPast, isNow: isNow)
+            if list.isEmpty {
+                Text(items.isEmpty ? "עוד לא הוספתם דבר ללו״ז." : "אין דברים בלו״ז ליום הזה.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(list) { item in
+                        let isDone = item.isDone(on: day)
+                        let isNow = isToday && item.startMinute <= minute && minute < item.endMinute
+                        let isPast = isToday && item.endMinute <= minute
+                        row(item, isDone: isDone, isNow: isNow, isPast: isPast)
+                        if item.id != list.last?.id {
+                            Divider().padding(.leading, 112)
                         }
-                        .buttonStyle(.plain)
-                    } else {
-                        timelineRow(row, isPast: isPast, isNow: isNow)
-                    }
-                    if row.id != list.last?.id {
-                        Divider().padding(.leading, 112)
                     }
                 }
+                .padding(.horizontal, 14)
+                .cardSurface()
             }
-            .padding(.horizontal, 14)
-            .cardSurface()
         }
     }
 
-    private func timelineRow(_ row: Row, isPast: Bool, isNow: Bool) -> some View {
+    private func row(_ item: ScheduleItem, isDone: Bool, isNow: Bool, isPast: Bool) -> some View {
         HStack(spacing: 12) {
-            Text(ScheduleItem.clock(row.minute))
-                .font(.system(size: 15, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(row.item == nil ? Theme.amberInk : Color.primary)
-                .frame(width: 46, alignment: .leading)
-            if row.item == nil {
-                Image(systemName: row.symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.amberInk)
-                    .frame(width: 38, height: 30)
-                    .background(Theme.amberGround, in: Capsule())
-            } else {
-                ArtworkIcon(artwork: row.artwork, symbol: row.symbol, size: 38)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                Text(row.title)
-                    .font(.system(size: row.item == nil ? 14 : 16, weight: row.item == nil ? .semibold : .bold))
-                    .foregroundStyle(row.item == nil ? Theme.amberInk : Color.primary)
-                    .lineLimit(1)
-                if !row.detail.isEmpty {
-                    Text(row.detail)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+            Button {
+                editing = item
+            } label: {
+                HStack(spacing: 12) {
+                    Text(ScheduleItem.clock(item.startMinute))
+                        .font(.system(size: 15, weight: .bold))
+                        .monospacedDigit()
+                        .frame(width: 46, alignment: .leading)
+                    ArtworkIcon(artwork: item.artwork, symbol: item.symbol, size: 38)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.title)
+                            .font(.system(size: 16, weight: .bold))
+                            .strikethrough(isDone)
+                            .lineLimit(1)
+                        Text(item.onlyDay.isEmpty ? NowStatus.duration(item.durationMinutes)
+                             : "\(NowStatus.duration(item.durationMinutes)) · חד פעמי")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                    if isNow {
+                        Text("עכשיו")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .frame(height: 24)
+                            .background(Theme.accent, in: Capsule())
+                    }
                 }
+                .foregroundStyle(Color.primary)
+                .opacity(isDone || (isPast && !isNow) ? 0.5 : 1)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 0)
-            if isNow {
-                Text("עכשיו")
-                    .font(.system(size: 12, weight: .heavy))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .frame(height: 24)
-                    .background(Theme.accent, in: Capsule())
+            .buttonStyle(.plain)
+
+            Button {
+                withAnimation(.spring(duration: 0.35, bounce: 0.4)) { item.setDone(!isDone, on: day) }
+                try? context.save()
+                SharedSync.shared.changed(in: context)
+                if isDone {
+                    Feedback.tap()
+                } else if todays.allSatisfy({ $0.isDone(on: day) }) {
+                    Feedback.celebrate()
+                } else {
+                    Feedback.done()
+                }
+            } label: {
+                Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 26))
+                    .foregroundStyle(isDone ? Theme.accent : Color.secondary)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 44)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isDone ? "ביטול הסימון" : "סימון כבוצע")
         }
-        .frame(minHeight: row.item == nil ? 44 : 58)
-        .opacity(isPast ? 0.45 : 1)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+        .frame(minHeight: 58)
     }
 
     // MARK: Starters
@@ -186,6 +155,7 @@ struct ScheduleView: View {
         let ideas: [ScheduleDraft] = [
             ScheduleDraft(title: "שחרית", start: 7 * 60, duration: 60, symbol: "sunrise.fill", palette: 4),
             ScheduleDraft(title: "חת״ת ורמב״ם", start: 8 * 60, duration: 30, symbol: "book.fill", palette: 0),
+            ScheduleDraft(title: "דף יומי", start: 6 * 60, duration: 45, symbol: "book.fill", palette: 1),
             ScheduleDraft(title: "עבודה", start: 9 * 60, duration: 480, weekdays: 0b0011111, symbol: "briefcase.fill", palette: 7),
             ScheduleDraft(title: "חברותא", start: 20 * 60, duration: 60, symbol: "person.2.fill", palette: 3),
             ScheduleDraft(title: "זמן זוגי", start: 21 * 60, duration: 45, symbol: "heart.fill", palette: 2),
@@ -193,7 +163,7 @@ struct ScheduleView: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text("בונים את היום שלכם")
                 .font(.system(size: 18, weight: .heavy))
-            Text("הוסיפו את החלקים הקבועים של היום. הם ישתלבו עם זמני היום, ויופיעו גם בסרגל שמעל התפריט.")
+            Text("הוסיפו את החלקים הקבועים של היום. בזמן אמת הם מופיעים ברצועה שמעל התפריט, ולחיצה עליה פותחת מסך מיקוד מלא.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
             ScrollView(.horizontal) {
@@ -218,52 +188,62 @@ struct ScheduleView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
     }
+}
 
-    // MARK: All times
+/// The colorful summary of the day's schedule.
+struct DayHero: View {
+    let items: [ScheduleItem]
+    let day: Date
+    let now: Date
+    let isToday: Bool
 
-    private func allTimes(zmanim: Zmanim, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Button {
-                withAnimation(.snappy) { showsAllTimes.toggle() }
-            } label: {
-                HStack {
-                    Text("כל זמני היום · \(zmanim.city.name)")
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundStyle(Color.primary)
-                    Spacer()
-                    Image(systemName: showsAllTimes ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+    private var done: Int { items.filter { $0.isDone(on: day) }.count }
 
-            if showsAllTimes {
-                ForEach(zmanim.list) { zman in
-                    HStack {
-                        Image(systemName: zman.symbol)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Theme.amberInk)
-                            .frame(width: 26)
-                        Text(zman.title)
-                            .font(.system(size: 15, weight: zman.isMain ? .bold : .regular))
-                        Spacer()
-                        Text(zmanim.clock(zman.date))
-                            .font(.system(size: 15, weight: .bold))
-                            .monospacedDigit()
-                    }
-                    .frame(height: 34)
-                    .opacity(isToday && zman.date < now ? 0.45 : 1)
-                }
-                Text("הזמנים מחושבים באפליקציה לפי שיטת אדמו״ר הזקן, בגובה פני הים, ועשויים לסטות בדקה או שתיים מהלוחות. לא להמתין לרגע האחרון.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 6)
-            }
+    private var headline: String {
+        if items.isEmpty { return "יום פתוח" }
+        if done == items.count { return "היום הושלם" }
+        return "\(done) מתוך \(items.count) הושלמו"
+    }
+
+    private var line: String {
+        let planned = items.reduce(0) { $0 + $1.durationMinutes }
+        guard isToday else {
+            return items.isEmpty ? "אין דברים קבועים ביום הזה." : "מתוכננות \(NowStatus.duration(planned))."
         }
-        .padding(16)
-        .cardSurface()
+        if items.isEmpty { return "הוסיפו את החלק הראשון של היום." }
+        let status = NowStatus.make(items: items, now: now)
+        if status.item != nil { return "\(status.title) · \(status.detail)" }
+        return done == items.count ? "כל הכבוד. מחר ממשיכים." : "הלו״ז של היום מאחוריכם. אפשר לסמן מה בוצע."
+    }
+
+    var body: some View {
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(HebrewDate.weekday(day)) · \(HebrewDate.text(day))")
+                    .font(.system(size: 14, weight: .bold))
+                    .opacity(0.9)
+                Text(headline)
+                    .font(.system(size: 30, weight: .heavy))
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                Text(line)
+                    .font(.system(size: 13, weight: .medium))
+                    .opacity(0.92)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+            ProgressRing(share: items.isEmpty ? 0 : Double(done) / Double(items.count), lineWidth: 10)
+                .frame(width: 84, height: 84)
+                .overlay {
+                    Image(systemName: !items.isEmpty && done == items.count ? "checkmark" : "calendar")
+                        .font(.system(size: 26, weight: .heavy))
+                }
+        }
+        .foregroundStyle(.white)
+        .padding(20)
+        .background(Theme.emerald.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color(hex: 0x047857).opacity(0.4), radius: 20, y: 12)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -432,6 +412,7 @@ struct ScheduleDraft: Identifiable {
     var weekdays = ScheduleItem.weekdaysMask
     var symbol = "clock.fill"
     var palette = 0
+    var isOnce = false
 
     init() {}
 
@@ -452,6 +433,7 @@ struct ScheduleDraft: Identifiable {
         weekdays = item.weekdays
         symbol = item.symbol
         palette = item.palette
+        isOnce = !item.onlyDay.isEmpty
     }
 }
 
@@ -459,6 +441,7 @@ struct ScheduleDraft: Identifiable {
 struct ScheduleEditor: View {
     let item: ScheduleItem?
     @State var draft: ScheduleDraft
+    let day: Date
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
@@ -487,6 +470,10 @@ struct ScheduleEditor: View {
                         }
                     }
                 }
+                Section {
+                    Toggle("חד פעמי, רק ב\(HebrewDate.weekday(day)) \(HebrewDate.text(day))", isOn: $draft.isOnce)
+                }
+                if !draft.isOnce {
                 Section("באילו ימים") {
                     HStack(spacing: 6) {
                         ForEach(0..<7, id: \.self) { index in
@@ -504,6 +491,7 @@ struct ScheduleEditor: View {
                             .accessibilityAddTraits(isOn ? .isSelected : [])
                         }
                     }
+                }
                 }
                 Section("מראה") {
                     SymbolGrid(symbols: ScheduleEditor.symbols, selection: $draft.symbol)
@@ -527,7 +515,8 @@ struct ScheduleEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("שמירה") { save() }
-                        .disabled(draft.title.trimmingCharacters(in: .whitespaces).isEmpty || draft.weekdays == 0)
+                        .disabled(draft.title.trimmingCharacters(in: .whitespaces).isEmpty
+                                  || (!draft.isOnce && draft.weekdays == 0))
                 }
             }
         }
@@ -543,11 +532,16 @@ struct ScheduleEditor: View {
             item.weekdays = draft.weekdays
             item.symbol = draft.symbol
             item.palette = draft.palette
+            item.onlyDay = draft.isOnce ? (item.onlyDay.isEmpty ? DayKey.of(day) : item.onlyDay) : ""
             item.updatedAt = .now
         } else {
-            context.insert(ScheduleItem(
+            let created = ScheduleItem(
                 title: title, startMinute: draft.start, durationMinutes: draft.duration,
-                weekdays: draft.weekdays, symbol: draft.symbol, palette: draft.palette))
+                weekdays: draft.weekdays, symbol: draft.symbol, palette: draft.palette)
+            created.onlyDay = draft.isOnce ? DayKey.of(day) : ""
+            context.insert(created)
+            Feedback.added()
+            Task { _ = await Notifier.shared.askPermission() }
         }
         finish()
     }
@@ -555,6 +549,7 @@ struct ScheduleEditor: View {
     private func finish() {
         try? context.save()
         SharedSync.shared.changed(in: context)
+        Notifier.shared.refresh(in: context)
         dismiss()
     }
 }
