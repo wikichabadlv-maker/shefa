@@ -23,6 +23,7 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Text(Self.dateLine)
@@ -53,6 +54,7 @@ struct HomeView: View {
                     }
 
                     TodayCard(selection: $selection)
+                        .id("today")
 
                     insights
 
@@ -68,6 +70,12 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
+            }
+            .task {
+                guard !Launch.anchor.isEmpty else { return }
+                try? await Task.sleep(for: .seconds(1.5))
+                proxy.scrollTo(Launch.anchor, anchor: .top)
+            }
             }
             .background(Theme.ground)
             .refreshable { await Backend.shared.sync(into: context) }

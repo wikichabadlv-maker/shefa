@@ -61,5 +61,5 @@ enum Launch {
 final class AppRouter {
     static let shared = AppRouter()
     var financeSection: FinanceSection = Launch.financeSection
-    var isQuickAdding = Launch.sheet == "quick"
+    var isQuickAdding = Launch.screen == "quick"
 }
