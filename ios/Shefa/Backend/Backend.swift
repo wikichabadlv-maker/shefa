@@ -143,7 +143,7 @@ final class Backend {
         }
         var known: [String: LedgerEntry] = [:]
         for entry in try context.fetch(FetchDescriptor<LedgerEntry>()) {
-            if entry.isSample && !rows.isEmpty {
+            if entry.isSample {
                 context.delete(entry)
             } else {
                 known[entry.id] = entry
@@ -218,7 +218,7 @@ final class Backend {
 
     /// Saves what the family said about a bank line, so both phones see it.
     func saveAnswer(entryID: String, categoryID: String, subID: String? = nil) async {
-        guard isSignedIn, !entryID.hasPrefix("sample-") else { return }
+        guard isSignedIn, !entryID.hasPrefix("sample-"), !entryID.hasPrefix("excel-") else { return }
         do {
             let token = try await validToken()
             let stamp = ISO8601DateFormatter().string(from: .now)
@@ -283,7 +283,9 @@ final class Backend {
         if status == 401 || status == 403 {
             return "אין הרשאה. נסו להתנתק ולהתחבר מחדש."
         }
-        return "שגיאת שרת (\(status))"
+        struct ServerMessage: Decodable { let message: String? }
+        let detail = (try? JSONDecoder().decode(ServerMessage.self, from: data))?.message ?? ""
+        return detail.isEmpty ? "שגיאת שרת (\(status))" : "שגיאת שרת (\(status)): \(detail)"
     }
 }
 

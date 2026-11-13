@@ -10,8 +10,9 @@ struct HomeView: View {
     @Query(filter: #Predicate<SavingsGoal> { !$0.removed }, sort: \SavingsGoal.createdAt)
     private var goals: [SavingsGoal]
 
-    private var month: MonthSummary { Ledger.summary(entries) }
-    private var question: LedgerEntry? { entries.first { $0.needsAnswer } }
+    private var counted: [LedgerEntry] { Ledger.effective(entries) }
+    private var month: MonthSummary { Ledger.summary(counted) }
+    private var question: LedgerEntry? { counted.first { $0.needsAnswer } }
     private var recent: [LedgerEntry] { Array(entries.prefix(3)) }
 
     var body: some View {
@@ -48,6 +49,27 @@ struct HomeView: View {
                             .cardSurface()
                         }
                         .buttonStyle(.plain)
+                    }
+
+                    if backend.isSignedIn, let problem = backend.lastError {
+                        HStack(alignment: .top, spacing: 12) {
+                            ArtworkIcon(artwork: Artwork(0xDC2626, 0x991B1B), symbol: "exclamationmark.triangle.fill")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("הסנכרון לא הצליח")
+                                    .font(.system(size: 16, weight: .bold))
+                                Text(problem)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                                Button("ניסיון נוסף") {
+                                    Task { await backend.sync(into: context) }
+                                }
+                                .font(.system(size: 14, weight: .bold))
+                                .padding(.top, 4)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(14)
+                        .cardSurface()
                     }
 
                     MonthHeroCard(month: month)

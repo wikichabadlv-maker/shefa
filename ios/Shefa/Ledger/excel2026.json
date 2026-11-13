@@ -1,0 +1,1193 @@
+{
+"year": 2026,
+"lines": [
+{
+"id": "excel-2026-10-8",
+"month": 10,
+"title": "משכורת גבר ויקיחב\"ד",
+"amount": 5100.0,
+"category": "income",
+"sub": "income.salary",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-10",
+"month": 10,
+"title": "משכורת אישה",
+"amount": 3500.0,
+"category": "income",
+"sub": "income.spouse",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-11",
+"month": 8,
+"title": "הכנסה מעסק",
+"amount": 600.0,
+"category": "income",
+"sub": "income.business",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-11",
+"month": 10,
+"title": "הכנסה מעסק",
+"amount": 1100.0,
+"category": "income",
+"sub": "income.business",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-14",
+"month": 6,
+"title": "עזרה מהמשפחה",
+"amount": 100.0,
+"category": "income",
+"sub": "income.family",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-14",
+"month": 7,
+"title": "עזרה מהמשפחה",
+"amount": 150.0,
+"category": "income",
+"sub": "income.family",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-14",
+"month": 8,
+"title": "עזרה מהמשפחה",
+"amount": 550.0,
+"category": "income",
+"sub": "income.family",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-14",
+"month": 10,
+"title": "עזרה מהמשפחה",
+"amount": 300.0,
+"category": "income",
+"sub": "income.family",
+"subTitle": null
+},
+{
+"id": "excel-2026-01-15",
+"month": 1,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-02-15",
+"month": 2,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-03-15",
+"month": 3,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-04-15",
+"month": 4,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-05-15",
+"month": 5,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-15",
+"month": 6,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-15",
+"month": 7,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-15",
+"month": 8,
+"title": "שכר מהצבא",
+"amount": 1459.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-15",
+"month": 9,
+"title": "שכר מהצבא",
+"amount": 1342.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-15",
+"month": 10,
+"title": "שכר מהצבא",
+"amount": 1342.0,
+"category": "income",
+"sub": "income.army",
+"subTitle": null
+},
+{
+"id": "excel-2026-03-16",
+"month": 3,
+"title": "סיוע בשכר דירה",
+"amount": 1080.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-04-16",
+"month": 4,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-05-16",
+"month": 5,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-16",
+"month": 6,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-16",
+"month": 7,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-16",
+"month": 8,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-16",
+"month": 9,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-16",
+"month": 10,
+"title": "סיוע בשכר דירה",
+"amount": 540.0,
+"category": "income",
+"sub": "income.rentaid",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-17",
+"month": 7,
+"title": "אחר (ניתן לשינוי)",
+"amount": 678.0,
+"category": "income",
+"sub": "income.other",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-22",
+"month": 8,
+"title": "שכר דירה",
+"amount": -3300.0,
+"category": "home",
+"sub": "home.rent",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-22",
+"month": 9,
+"title": "שכר דירה",
+"amount": -3300.0,
+"category": "home",
+"sub": "home.rent",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-22",
+"month": 10,
+"title": "שכר דירה",
+"amount": -3300.0,
+"category": "home",
+"sub": "home.rent",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-25",
+"month": 8,
+"title": "ארנונה",
+"amount": -302.0,
+"category": "home",
+"sub": "home.arnona",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-26",
+"month": 10,
+"title": "מים",
+"amount": -130.0,
+"category": "home",
+"sub": "home.water",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-27",
+"month": 10,
+"title": "חשמל",
+"amount": -185.0,
+"category": "home",
+"sub": "home.electric",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-36",
+"month": 6,
+"title": "טלפון ביתי",
+"amount": -5.0,
+"category": "home",
+"sub": null,
+"subTitle": "טלפון ביתי"
+},
+{
+"id": "excel-2026-07-36",
+"month": 7,
+"title": "טלפון ביתי",
+"amount": -19.0,
+"category": "home",
+"sub": null,
+"subTitle": "טלפון ביתי"
+},
+{
+"id": "excel-2026-10-37",
+"month": 10,
+"title": "אינטרנט - ספק",
+"amount": -107.0,
+"category": "home",
+"sub": "home.internet",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-39",
+"month": 8,
+"title": "טלפונים סלולריים",
+"amount": -49.0,
+"category": "home",
+"sub": "home.mobile",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-39",
+"month": 9,
+"title": "טלפונים סלולריים",
+"amount": -90.0,
+"category": "home",
+"sub": "home.mobile",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-39",
+"month": 10,
+"title": "טלפונים סלולריים",
+"amount": -91.0,
+"category": "home",
+"sub": "home.mobile",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-40",
+"month": 7,
+"title": "ריהוט",
+"amount": -128.0,
+"category": "home",
+"sub": "home.furniture",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-40",
+"month": 8,
+"title": "ריהוט",
+"amount": -1465.0,
+"category": "home",
+"sub": "home.furniture",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-40",
+"month": 9,
+"title": "ריהוט",
+"amount": -126.0,
+"category": "home",
+"sub": "home.furniture",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-40",
+"month": 10,
+"title": "ריהוט",
+"amount": -113.0,
+"category": "home",
+"sub": "home.furniture",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-41",
+"month": 9,
+"title": "גוגל",
+"amount": -8.0,
+"category": "home",
+"sub": "home.subscriptions",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-41",
+"month": 10,
+"title": "גוגל",
+"amount": -8.0,
+"category": "home",
+"sub": "home.subscriptions",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-42",
+"month": 7,
+"title": "מוצרי חשמל",
+"amount": -49.0,
+"category": "home",
+"sub": "home.furniture",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-43",
+"month": 8,
+"title": "מעבר דירה",
+"amount": -3450.0,
+"category": "home",
+"sub": "home.moving",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-44",
+"month": 6,
+"title": "מתווך",
+"amount": -1650.0,
+"category": "home",
+"sub": "home.moving",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-44",
+"month": 7,
+"title": "מתווך",
+"amount": -1650.0,
+"category": "home",
+"sub": "home.moving",
+"subTitle": null
+},
+{
+"id": "excel-2026-01-54",
+"month": 1,
+"title": "תרומות",
+"amount": -400.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-02-54",
+"month": 2,
+"title": "תרומות",
+"amount": -800.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-03-54",
+"month": 3,
+"title": "תרומות",
+"amount": -580.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-04-54",
+"month": 4,
+"title": "תרומות",
+"amount": -860.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-05-54",
+"month": 5,
+"title": "תרומות",
+"amount": -940.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-54",
+"month": 6,
+"title": "תרומות",
+"amount": -400.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-54",
+"month": 7,
+"title": "תרומות",
+"amount": -500.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-54",
+"month": 8,
+"title": "תרומות",
+"amount": -300.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-54",
+"month": 9,
+"title": "תרומות",
+"amount": -400.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-54",
+"month": 10,
+"title": "תרומות",
+"amount": -400.0,
+"category": "maaser",
+"sub": "maaser.regular",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-55",
+"month": 6,
+"title": "תרומה חד פעמית",
+"amount": -97.0,
+"category": "maaser",
+"sub": "maaser.single",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-55",
+"month": 7,
+"title": "תרומה חד פעמית",
+"amount": -80.0,
+"category": "maaser",
+"sub": "maaser.single",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-55",
+"month": 9,
+"title": "תרומה חד פעמית",
+"amount": -295.0,
+"category": "maaser",
+"sub": "maaser.single",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-55",
+"month": 10,
+"title": "תרומה חד פעמית",
+"amount": -105.0,
+"category": "maaser",
+"sub": "maaser.single",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-61",
+"month": 7,
+"title": "ביטוח חובה ומקיף",
+"amount": -90.0,
+"category": "transport",
+"sub": "transport.insurance",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-61",
+"month": 9,
+"title": "ביטוח חובה ומקיף",
+"amount": -30.0,
+"category": "transport",
+"sub": "transport.insurance",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-61",
+"month": 10,
+"title": "ביטוח חובה ומקיף",
+"amount": -30.0,
+"category": "transport",
+"sub": "transport.insurance",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-63",
+"month": 6,
+"title": "תיקונים וטיפולים",
+"amount": -200.0,
+"category": "transport",
+"sub": "transport.service",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-64",
+"month": 6,
+"title": "תחבורה ציבורית",
+"amount": -104.0,
+"category": "transport",
+"sub": "transport.public",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-64",
+"month": 7,
+"title": "תחבורה ציבורית",
+"amount": -328.0,
+"category": "transport",
+"sub": "transport.public",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-64",
+"month": 8,
+"title": "תחבורה ציבורית",
+"amount": -220.0,
+"category": "transport",
+"sub": "transport.public",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-64",
+"month": 9,
+"title": "תחבורה ציבורית",
+"amount": -104.5,
+"category": "transport",
+"sub": "transport.public",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-64",
+"month": 10,
+"title": "תחבורה ציבורית",
+"amount": -200.0,
+"category": "transport",
+"sub": "transport.public",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-65",
+"month": 6,
+"title": "הוצאות דלק",
+"amount": -50.0,
+"category": "transport",
+"sub": "transport.fuel",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-65",
+"month": 7,
+"title": "הוצאות דלק",
+"amount": -51.0,
+"category": "transport",
+"sub": "transport.fuel",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-65",
+"month": 8,
+"title": "הוצאות דלק",
+"amount": -175.0,
+"category": "transport",
+"sub": "transport.fuel",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-65",
+"month": 9,
+"title": "הוצאות דלק",
+"amount": -184.0,
+"category": "transport",
+"sub": "transport.fuel",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-65",
+"month": 10,
+"title": "הוצאות דלק",
+"amount": -100.0,
+"category": "transport",
+"sub": "transport.fuel",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-66",
+"month": 9,
+"title": "הוצאות חניה",
+"amount": -30.0,
+"category": "transport",
+"sub": "transport.parking",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-66",
+"month": 10,
+"title": "הוצאות חניה",
+"amount": -45.0,
+"category": "transport",
+"sub": "transport.parking",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-67",
+"month": 8,
+"title": "אגרות כבישים",
+"amount": -25.0,
+"category": "transport",
+"sub": "transport.parking",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-68",
+"month": 8,
+"title": "מוניות",
+"amount": -25.0,
+"category": "transport",
+"sub": "transport.taxi",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-68",
+"month": 10,
+"title": "מוניות",
+"amount": -100.0,
+"category": "transport",
+"sub": "transport.taxi",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-70",
+"month": 8,
+"title": "השכרת רכב",
+"amount": -300.0,
+"category": "transport",
+"sub": "transport.rental",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-70",
+"month": 9,
+"title": "השכרת רכב",
+"amount": -180.0,
+"category": "transport",
+"sub": "transport.rental",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-70",
+"month": 10,
+"title": "השכרת רכב",
+"amount": -230.0,
+"category": "transport",
+"sub": "transport.rental",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-81",
+"month": 6,
+"title": "מנוי מורה שמיים",
+"amount": -59.0,
+"category": "kids",
+"sub": "kids.classes",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-81",
+"month": 7,
+"title": "מנוי מורה שמיים",
+"amount": -59.0,
+"category": "kids",
+"sub": "kids.classes",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-82",
+"month": 8,
+"title": "חומרי עזר",
+"amount": -72.0,
+"category": "kids",
+"sub": "kids.study",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-82",
+"month": 10,
+"title": "חומרי עזר",
+"amount": -22.0,
+"category": "kids",
+"sub": "kids.study",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-88",
+"month": 6,
+"title": "מזון ומכולת",
+"amount": -157.0,
+"category": "food",
+"sub": "food.groceries",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-88",
+"month": 7,
+"title": "מזון ומכולת",
+"amount": -23.0,
+"category": "food",
+"sub": "food.groceries",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-88",
+"month": 8,
+"title": "מזון ומכולת",
+"amount": -1605.5,
+"category": "food",
+"sub": "food.groceries",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-88",
+"month": 9,
+"title": "מזון ומכולת",
+"amount": -488.0,
+"category": "food",
+"sub": "food.groceries",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-88",
+"month": 10,
+"title": "מזון ומכולת",
+"amount": -1117.0,
+"category": "food",
+"sub": "food.groceries",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-89",
+"month": 7,
+"title": "סופר פארם",
+"amount": -280.0,
+"category": "food",
+"sub": "food.pharm",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-89",
+"month": 9,
+"title": "סופר פארם",
+"amount": -100.0,
+"category": "food",
+"sub": "food.pharm",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-90",
+"month": 7,
+"title": "ביגוד והנעלה",
+"amount": -840.0,
+"category": "clothing",
+"sub": "clothing.clothes",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-90",
+"month": 8,
+"title": "ביגוד והנעלה",
+"amount": -283.0,
+"category": "clothing",
+"sub": "clothing.clothes",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-90",
+"month": 9,
+"title": "ביגוד והנעלה",
+"amount": -150.0,
+"category": "clothing",
+"sub": "clothing.clothes",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-95",
+"month": 7,
+"title": "קוסמטיקה",
+"amount": -370.0,
+"category": "clothing",
+"sub": "clothing.care",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-95",
+"month": 8,
+"title": "קוסמטיקה",
+"amount": -50.0,
+"category": "clothing",
+"sub": "clothing.care",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-100",
+"month": 6,
+"title": "מקווה",
+"amount": -202.0,
+"category": "shabbat",
+"sub": "shabbat.mikveh",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-100",
+"month": 7,
+"title": "מקווה",
+"amount": -150.0,
+"category": "shabbat",
+"sub": "shabbat.mikveh",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-100",
+"month": 8,
+"title": "מקווה",
+"amount": -155.0,
+"category": "shabbat",
+"sub": "shabbat.mikveh",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-100",
+"month": 9,
+"title": "מקווה",
+"amount": -155.0,
+"category": "shabbat",
+"sub": "shabbat.mikveh",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-100",
+"month": 10,
+"title": "מקווה",
+"amount": -247.0,
+"category": "shabbat",
+"sub": "shabbat.mikveh",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-106",
+"month": 10,
+"title": "חופשות בארץ",
+"amount": -750.0,
+"category": "gift",
+"sub": "gift.vacation",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-108",
+"month": 6,
+"title": "אוכל בחוץ",
+"amount": -200.0,
+"category": "gift",
+"sub": "gift.takeaway",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-108",
+"month": 7,
+"title": "אוכל בחוץ",
+"amount": -354.0,
+"category": "gift",
+"sub": "gift.takeaway",
+"subTitle": null
+},
+{
+"id": "excel-2026-08-108",
+"month": 8,
+"title": "אוכל בחוץ",
+"amount": -127.0,
+"category": "gift",
+"sub": "gift.takeaway",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-108",
+"month": 9,
+"title": "אוכל בחוץ",
+"amount": -62.7,
+"category": "gift",
+"sub": "gift.takeaway",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-108",
+"month": 10,
+"title": "אוכל בחוץ",
+"amount": -386.0,
+"category": "gift",
+"sub": "gift.takeaway",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-109",
+"month": 6,
+"title": "מסעדות וקפה",
+"amount": -414.0,
+"category": "gift",
+"sub": "gift.restaurants",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-109",
+"month": 7,
+"title": "מסעדות וקפה",
+"amount": -343.0,
+"category": "gift",
+"sub": "gift.restaurants",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-109",
+"month": 9,
+"title": "מסעדות וקפה",
+"amount": -79.0,
+"category": "gift",
+"sub": "gift.restaurants",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-109",
+"month": 10,
+"title": "מסעדות וקפה",
+"amount": -570.0,
+"category": "gift",
+"sub": "gift.restaurants",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-114",
+"month": 6,
+"title": "מתנות וכדו'",
+"amount": -102.0,
+"category": "gift",
+"sub": "gift.gifts",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-114",
+"month": 9,
+"title": "מתנות וכדו'",
+"amount": -180.0,
+"category": "gift",
+"sub": "gift.gifts",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-115",
+"month": 6,
+"title": "ספרים ומשחקים",
+"amount": -388.0,
+"category": "gift",
+"sub": "gift.books",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-115",
+"month": 9,
+"title": "ספרים ומשחקים",
+"amount": -156.0,
+"category": "gift",
+"sub": "gift.books",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-115",
+"month": 10,
+"title": "ספרים ומשחקים",
+"amount": -124.0,
+"category": "gift",
+"sub": "gift.books",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-120",
+"month": 9,
+"title": "קופות חולים",
+"amount": -255.0,
+"category": "health",
+"sub": "health.kupah",
+"subTitle": null
+},
+{
+"id": "excel-2026-10-120",
+"month": 10,
+"title": "קופות חולים",
+"amount": -239.0,
+"category": "health",
+"sub": "health.kupah",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-122",
+"month": 7,
+"title": "בריאות פרטי",
+"amount": -265.0,
+"category": "health",
+"sub": "health.insurance",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-122",
+"month": 9,
+"title": "בריאות פרטי",
+"amount": -424.0,
+"category": "health",
+"sub": "health.insurance",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-126",
+"month": 6,
+"title": "פועה",
+"amount": -50.0,
+"category": "health",
+"sub": "health.care",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-127",
+"month": 6,
+"title": "אופטיקה",
+"amount": -100.0,
+"category": "health",
+"sub": "health.optics",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-132",
+"month": 6,
+"title": "בדיקת תפילין",
+"amount": -350.0,
+"category": "shabbat",
+"sub": "shabbat.tefillin",
+"subTitle": null
+},
+{
+"id": "excel-2026-06-133",
+"month": 6,
+"title": "כללית סמייל",
+"amount": -220.0,
+"category": "health",
+"sub": null,
+"subTitle": "כללית סמייל"
+},
+{
+"id": "excel-2026-06-134",
+"month": 6,
+"title": "גוגל",
+"amount": -64.0,
+"category": "home",
+"sub": "home.subscriptions",
+"subTitle": null
+},
+{
+"id": "excel-2026-07-135",
+"month": 7,
+"title": "פאה",
+"amount": -350.0,
+"category": "clothing",
+"sub": "clothing.wig",
+"subTitle": null
+},
+{
+"id": "excel-2026-09-136",
+"month": 9,
+"title": "יודאיקה",
+"amount": -565.0,
+"category": "shabbat",
+"sub": "shabbat.judaica",
+"subTitle": null
+}
+]
+}

@@ -71,5 +71,5 @@ create policy "members read runs" on sync_runs for select
 create policy "members manage details" on transaction_details for all
   using (auth.uid() in (select user_id from household_members))
   with check (auth.uid() in (select user_id from household_members));
-create policy "members see members" on household_members for select
-  using (auth.uid() in (select user_id from household_members));
+create policy "members see themselves" on household_members for select
+  using (user_id = auth.uid());

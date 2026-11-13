@@ -18,8 +18,10 @@ struct FinanceView: View {
     @State private var month = Date.now
 
     private var summary: MonthSummary {
-        Ledger.summary(entries, now: month)
+        Ledger.summary(counted, now: month)
     }
+
+    private var counted: [LedgerEntry] { Ledger.effective(entries) }
 
     private var monthEntries: [LedgerEntry] { Ledger.inMonth(entries, month) }
 
@@ -71,13 +73,13 @@ struct FinanceView: View {
 
                     switch section {
                     case .overview:
-                        OverviewView(entries: entries, month: month, summary: summary)
+                        OverviewView(entries: counted, month: month, summary: summary)
                     case .transactions:
                         TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
                     case .budget:
-                        BudgetList(entries: entries, month: month)
+                        BudgetList(entries: counted, month: month)
                     case .savings:
-                        SavingsList(month: Ledger.summary(entries))
+                        SavingsList(month: Ledger.summary(counted))
                     }
                 }
                 .padding(.horizontal, 16)

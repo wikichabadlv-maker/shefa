@@ -38,6 +38,7 @@ struct RootView: View {
             NowTaskBar(task: SampleData.currentTask)
         }
         .task {
+            ExcelImport.importIfNeeded(in: context)
             Ledger.seedIfNeeded(in: context)
             Ledger.seedPlanningIfNeeded(in: context)
             await Backend.shared.sync(into: context)
