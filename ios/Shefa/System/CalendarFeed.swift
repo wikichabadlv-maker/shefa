@@ -155,7 +155,13 @@ final class CalendarFeed {
         let today = calendar.startOfDay(for: .now)
         func make(_ title: String, _ days: Int, _ minute: Int?, _ length: Int, birthday: Bool, _ tint: Color) -> DayEvent {
             let day = calendar.date(byAdding: .day, value: days, to: today) ?? today
-            let start = minute.map { day.addingTimeInterval(Double($0) * 60) } ?? day
+            var start = minute.map { day.addingTimeInterval(Double($0) * 60) } ?? day
+            // A made-up meeting or wedding never falls on Shabbat or a festival.
+            if minute != nil {
+                for _ in 0..<4 where Notifier.isHolyTime(start) {
+                    start = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+                }
+            }
             return DayEvent(id: title, title: title, start: start, end: start.addingTimeInterval(Double(length) * 60),
                             isAllDay: minute == nil, isBirthday: birthday, tint: tint)
         }

@@ -267,7 +267,7 @@ struct WeekPicker: View {
         .foregroundStyle(.white)
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .livingCard(WeekThreeCard.artwork, seed: 0.3, watermark: "target")
+        .livingCard(WeekThreeCard.artwork, seed: 0.3)
     }
 
     private func slot(_ index: Int, _ task: ListItem?) -> some View {

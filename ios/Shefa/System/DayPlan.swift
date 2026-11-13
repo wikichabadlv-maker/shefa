@@ -363,7 +363,9 @@ struct DayPlan {
             if span.end <= cursor { continue }
             if span.start >= closing { break }
             if span.start > cursor { result.append(DaySpan(start: cursor, end: min(span.start, closing))) }
-            cursor = max(cursor, span.end)
+            // The next stretch begins on a round five minutes: a fixed part
+            // may end at a minute of its own, such as one tied to sunset.
+            cursor = max(cursor, ((span.end + 4) / 5) * 5)
             if cursor >= closing { break }
         }
         if cursor < closing { result.append(DaySpan(start: cursor, end: closing)) }

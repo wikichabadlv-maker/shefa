@@ -256,10 +256,24 @@ struct DayHero: View {
 
     private var done: Int { items.filter { $0.isDone(on: day) }.count }
 
-    /// The civil date leads, and the Hebrew one follows it.
+    /// The civil date leads, and the Hebrew one follows it. Today's line
+    /// follows the hour, as on the home screen: once the stars are out the
+    /// Hebrew date is the coming day's, and the evening after a day of rest
+    /// goes by its own name.
     private var dateLine: String {
         let civil: String = day.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
-        return "\(HebrewDate.weekday(day)) · \(civil) · \(HebrewDate.text(day))"
+        guard isToday else { return HebrewDate.weekday(day) + " · " + civil + " · " + HebrewDate.text(day) }
+        let kind: JewishDay = JewishDay.of(day)
+        let weekday: String = kind.isRest && !Notifier.isHolyTime(now) ? kind.outName : HebrewDate.weekday(day)
+        return weekday + " · " + civil + " · " + JewishDay.moment(now).date
+    }
+
+    /// From candle lighting until the day is out the card asks for nothing.
+    /// On the eve the card of the candles above it already gives the greeting.
+    private func restLine(isEmpty: Bool) -> String {
+        let rest: (on: JewishDay, last: JewishDay) = JewishDay.rest(at: now)
+        if JewishDay.of(day).isRest { return rest.on.greeting + "." }
+        return isEmpty ? "הכול מחכה ל" + rest.last.outName + "." : "הלו״ז של היום מאחוריכם."
     }
 
     private var headline: String {
@@ -273,11 +287,11 @@ struct DayHero: View {
         guard isToday else {
             return items.isEmpty ? "אין דברים קבועים ביום הזה." : "מתוכננות \(NowStatus.duration(planned))."
         }
-        if items.isEmpty { return "הוסיפו את החלק הראשון של היום." }
+        let isHoly: Bool = Notifier.isHolyTime(now)
+        if items.isEmpty { return isHoly ? restLine(isEmpty: true) : "הוסיפו את החלק הראשון של היום." }
         let status = NowStatus.make(items: items, now: now)
         if status.item != nil { return "\(status.title) · \(status.detail)" }
-        // From candle lighting until the day is out the card asks for nothing.
-        if Notifier.isHolyTime(now) { return JewishDay.rest(at: now).on.greeting + "." }
+        if isHoly { return restLine(isEmpty: false) }
         return done == items.count ? "כל הכבוד. מחר ממשיכים." : "הלו״ז של היום מאחוריכם. אפשר לסמן מה בוצע."
     }
 

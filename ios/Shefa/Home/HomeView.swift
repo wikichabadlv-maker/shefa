@@ -24,6 +24,9 @@ struct HomeView: View {
     private var month: MonthSummary { Ledger.summary(counted) }
     private var question: LedgerEntry? { counted.first { $0.needsAnswer } }
     private var recent: [LedgerEntry] { Array(entries.prefix(4)) }
+    /// From candle lighting until Shabbat or a festival is out the home asks
+    /// for nothing: no banners, no questions and no lists to tick.
+    private var isHoly: Bool { Notifier.isHolyTime(.now) }
     /// Today's tasks first; when none were picked, the newest open ones.
     private var todayTasks: [ListItem] {
         let picked = tasks.filter(\.isForToday)
@@ -47,14 +50,16 @@ struct HomeView: View {
                     }
                     .cascade(1)
 
-                    RenewBanner()
-                    BackupBanner()
+                    if !isHoly {
+                        RenewBanner()
+                        BackupBanner()
 
-                    if !backend.isSignedIn {
-                        signInBanner
-                    }
-                    if backend.isSignedIn, let problem = backend.lastError {
-                        syncProblem(problem)
+                        if !backend.isSignedIn {
+                            signInBanner
+                        }
+                        if backend.isSignedIn, let problem = backend.lastError {
+                            syncProblem(problem)
+                        }
                     }
 
                     Button {
@@ -66,7 +71,7 @@ struct HomeView: View {
                     .buttonStyle(.pressable)
                     .cascade(2)
 
-                    if let question {
+                    if !isHoly, let question {
                         QuestionCard(entry: question)
                             .id(question.id)
                             .transition(.opacity)
@@ -79,9 +84,11 @@ struct HomeView: View {
                     CalendarCard()
                         .cascade(4)
 
-                    CoachCard()
-                        .cascade(4)
-                        .id("coach")
+                    if !isHoly {
+                        CoachCard()
+                            .cascade(4)
+                            .id("coach")
+                    }
 
                     HabitsCard()
                         .cascade(5)
@@ -93,16 +100,18 @@ struct HomeView: View {
                     insights
                         .cascade(7)
 
-                    if !tasks.isEmpty {
-                        tasksPreview
-                            .cascade(8)
-                    }
+                    if !isHoly {
+                        if !tasks.isEmpty {
+                            tasksPreview
+                                .cascade(8)
+                        }
 
-                    ShoppingCard(open: shopping) {
-                        router.tasksSection = .shopping
-                        selection = .tasks
+                        ShoppingCard(open: shopping) {
+                            router.tasksSection = .shopping
+                            selection = .tasks
+                        }
+                        .cascade(8)
                     }
-                    .cascade(8)
 
                     goalsSection
                         .cascade(9)

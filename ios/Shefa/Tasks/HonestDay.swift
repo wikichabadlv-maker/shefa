@@ -233,7 +233,8 @@ struct DayRingHero: View {
                     .monospacedDigit()
                     .contentTransition(.numericText())
                 // With no room left there is nothing to measure against.
-                Text(plan.roomMinutes >= 5 ? "מתוך " + DayRingHero.short(plan.roomMinutes) : "מתוכנן")
+                // In round numbers, like the sentence next to it: the room is an estimate.
+                Text(plan.roomMinutes >= 5 ? "מתוך " + DayRingHero.short((plan.roomMinutes / 5) * 5) : "מתוכנן")
                     .font(.system(size: 11, weight: .bold))
                     .monospacedDigit()
                     .opacity(0.85)

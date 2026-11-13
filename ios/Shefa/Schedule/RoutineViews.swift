@@ -122,13 +122,29 @@ struct RoutineShelf: View {
         .cardSurface()
     }
 
+    /// What a cover says about the hour, only while it can be acted on:
+    /// the last minute to begin, then that it is time, and once today's
+    /// hour has passed, when it begins tomorrow. Nothing at all from candle
+    /// lighting until the day is out.
+    private func hourLine(_ routine: Routine) -> String? {
+        let now: Date = .now
+        guard !Notifier.isHolyTime(now) else { return nil }
+        if routine.isForCandles { return "עד הדלקת הנרות" }
+        guard let goal = routine.goalMinute else { return nil }
+        let minute: Int = ScheduleItem.minute(of: now)
+        if let start = routine.startBy(on: now), minute < goal {
+            return minute <= start ? "להתחיל עד " + ScheduleItem.clock(start) : "להתחיל עכשיו"
+        }
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now),
+              let start = routine.startBy(on: tomorrow) else { return nil }
+        return "מחר ב־" + ScheduleItem.clock(start)
+    }
+
     private func cover(_ routine: Routine) -> some View {
         let isPlaying: Bool = run.routine?.id == routine.id
         let count: Int = run.routine?.steps.count ?? routine.steps.count
         let line: String = isPlaying ? "מתנגנת · צעד \(run.index + 1) מתוך \(count)" : routine.summary
-        let startBy: String? = routine.isForCandles
-            ? "עד הדלקת הנרות"
-            : routine.latestStart.map { "להתחיל עד \(ScheduleItem.clock($0))" }
+        let startBy: String? = hourLine(routine)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 Image(systemName: routine.symbol)
@@ -154,6 +170,8 @@ struct RoutineShelf: View {
             if let startBy {
                 Text(startBy)
                     .font(.system(size: 11, weight: .heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .padding(.horizontal, 8)
                     .frame(height: 20)
                     .background(.white.opacity(0.2), in: Capsule())

@@ -71,10 +71,12 @@ jobs:
             sudo systemsetup -setusingnetworktime off >/dev/null 2>&1 || true
             sudo date -f "%Y-%m-%dT%H:%M" "$1" >/dev/null || true
             date
-            # The status bar shows the same hour. It is given as a whole date:
-            # some bare hours, such as 19:00, are refused as a broken one.
-            zone=$(date +%z)
-            shown="$1:00${zone:0:3}:${zone:3:2}"
+            # The status bar shows the same hour, on a twelve-hour clock as
+            # the simulator itself shows it: an hour that begins with 19 or
+            # 20 is taken for a year and refused.
+            hm="${1#*T}"
+            hour=$((10#${hm%%:*}))
+            shown="$(( (hour + 11) % 12 + 1 )):${hm##*:}"
             if [ -n "$device" ]; then
               xcrun simctl status_bar "$device" override --time "$shown" --batteryState charged --batteryLevel 100 || true
             fi
@@ -95,6 +97,9 @@ jobs:
           if [ -n "$MONTH" ]; then extra="$extra -month $MONTH"; fi
           if [ "$DEMO" = "yes" ]; then extra="$extra -demo YES"; fi
           tag=""
+          # The first launch after an install builds the store and fills it,
+          # and takes longer to settle than the ones after it.
+          fresh=1
           capture() {
             # An item is a screen, optionally with a place to scroll to and
             # a mood for the month card: screen@anchor@mood. Three words
@@ -108,6 +113,7 @@ jobs:
                 reset)
                   xcrun simctl uninstall "$device" app.shefa.ios >/dev/null 2>&1 || true
                   xcrun simctl install "$device" "$app"
+                  fresh=1
                   continue ;;
               esac
               IFS='@' read -r screen anchor mood <<< "$item"
@@ -115,7 +121,7 @@ jobs:
               if [ -n "$mood" ]; then more="-mood $mood"; fi
               xcrun simctl terminate "$device" app.shefa.ios >/dev/null 2>&1 || true
               xcrun simctl launch "$device" app.shefa.ios -screen "$screen" -anchor "$anchor" $extra $more
-              sleep 6
+              if [ -n "$fresh" ]; then sleep 14; fresh=""; else sleep 6; fi
               name="$screen"
               if [ -n "$anchor" ]; then name="$name-$anchor"; fi
               if [ -n "$mood" ]; then name="$name-$mood"; fi
