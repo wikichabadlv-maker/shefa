@@ -64,6 +64,12 @@ struct RootView: View {
         .sheet(isPresented: $router.isNowPlaying) {
             NowPlayingView()
         }
+        .fullScreenCover(isPresented: $router.isPlanningDay) {
+            PlanDayFlow()
+        }
+        .fullScreenCover(isPresented: $router.isClosingDay) {
+            CloseDayFlow()
+        }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
             FocusTimer.shared.tick(now: now)
             // Anything changed on this phone reaches the cloud within a minute.
@@ -74,6 +80,9 @@ struct RootView: View {
             if phase != .active {
                 try? context.save()
                 Task { await SharedSync.shared.run(in: context) }
+            } else {
+                // The app may have slept through midnight.
+                startDay()
             }
         }
         .task {
@@ -82,6 +91,9 @@ struct RootView: View {
             Ledger.removeExampleGoals(in: context)
             Habit.addDefaultsIfNeeded(in: context)
             if Launch.demo { DemoData.fill(context) }
+            startDay()
+            if Launch.screen.hasPrefix("plan-day") { router.isPlanningDay = true }
+            if Launch.screen.hasPrefix("close-day") { router.isClosingDay = true }
             if Launch.screen == "quick" { router.isQuickAdding = true }
             if Launch.screen == "now" { router.isNowPlaying = true }
             if Launch.screen == "moment" {
@@ -95,6 +107,19 @@ struct RootView: View {
             await Backend.shared.sync(into: context)
             await SharedSync.shared.run(in: context)
         }
+    }
+
+    /// What a new day asks for, done once a day: tasks that were left behind
+    /// are counted, and the parts of the day that follow the sun move to
+    /// today's times.
+    private func startDay() {
+        let key = "dayStarted"
+        let today: String = DayKey.of()
+        guard UserDefaults.standard.string(forKey: key) != today else { return }
+        UserDefaults.standard.set(today, forKey: key)
+        TaskRules.carryOver(in: context)
+        ScheduleItem.followAnchors(in: context)
+        Notifier.shared.refresh(in: context)
     }
 }
 

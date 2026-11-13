@@ -13,20 +13,35 @@ enum DemoData {
         guard existing == 0 else { return }
 
         let today = Calendar.current.startOfDay(for: .now)
-        for (index, title) in ["להזמין תור לרופא שיניים", "לשלם ועד בית", "לקנות מתנה לבר מצווה",
-                               "להחזיר ספר לספרייה", "לחדש ביטוח רכב"].enumerated() {
-            let item = ListItem(kind: ListItem.task, title: title)
-            if index < 2 { item.due = today }
-            if index == 0 { item.priority = 1; item.minutes = 10 }
-            if index == 2 { item.due = Calendar.current.date(byAdding: .day, value: 3, to: today) }
-            if index == 3 { item.due = Calendar.current.date(byAdding: .day, value: -1, to: today); item.repeatRule = "weekly" }
+        let yesterday: Date = Calendar.current.date(byAdding: .day, value: -1, to: today) ?? today
+        // Title, days from today (nil for no day), minutes.
+        let tasks: [(String, Int?, Int)] = [
+            ("להזמין תור לרופא שיניים", 0, 10), ("לשלם ועד בית", 0, 5),
+            ("לסדר את הניירת לרואה החשבון", 0, 60), ("להחזיר ספר לספרייה", -1, 20),
+            ("לקנות מתנה לבר מצווה", 3, 45), ("לחדש ביטוח רכב", nil, 30), ("להתקשר לסבתא", nil, 0),
+        ]
+        for (index, line) in tasks.enumerated() {
+            let item = ListItem(kind: ListItem.task, title: line.0)
+            if let days = line.1 { item.due = Calendar.current.date(byAdding: .day, value: days, to: today) }
+            item.minutes = line.2
+            if index == 0 { item.priority = 1 }
+            if index == 3 { item.repeatRule = "weekly" }
+            if index == 5 {
+                // Chosen for yesterday, not done, and put off before that too.
+                item.todayDay = ListItem.leftMark + DayKey.of(yesterday)
+                item.pushed = 3
+                item.pushedDay = DayKey.of(today)
+            }
+            item.createdAt = Date.now.addingTimeInterval(Double(-index))
             context.insert(item)
         }
         let finished = ListItem(kind: ListItem.task, title: "לשלוח טופס למעון")
         finished.isDone = true
         finished.doneAt = .now
+        finished.minutes = 15
         context.insert(finished)
         if Stats.doneToday == 0 { Stats.addDone(1) }
+        fillJournal()
         let habits = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
         for habit in habits.prefix(2) where !habit.isDone() { habit.toggle() }
         for title in ["חלב", "ביצים", "חלות לשבת", "נרות"] {
@@ -105,6 +120,21 @@ enum DemoData {
         fillHistory(context)
         fillBank(context)
         try? context.save()
+    }
+
+    /// What the app would have learned from a few weeks of the family's days:
+    /// how much gets done in a day, how estimates turn out, how days felt.
+    private static func fillJournal() {
+        let calendar = Calendar.current
+        let done: [Int] = [90, 60, 120, 75, 105, 90, 45, 110, 80, 95, 70, 100]
+        for (index, minutes) in done.enumerated() {
+            guard let day = calendar.date(byAdding: .day, value: -(index + 1), to: .now) else { continue }
+            DayJournal.note(planned: minutes + [0, 30, 15, 45][index % 4], done: minutes, on: day)
+            DayJournal.setMood([3, 2, 3, 1, 2, 3][index % 6], on: day)
+        }
+        for pair in [(10, 14), (20, 28), (30, 41), (15, 20), (45, 62), (10, 13)] {
+            DayJournal.addSample(estimate: pair.0, actual: pair.1)
+        }
     }
 
     /// Made-up bank and card lines on real days, for this month and the two

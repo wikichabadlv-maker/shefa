@@ -54,8 +54,13 @@ enum Deck {
         let minute = ScheduleItem.minute(of: now)
         let list = NowStatus.today(items, on: now)
         let openHabits = habits.filter { !$0.removed && !$0.isDone(on: now) }.sorted { $0.order < $1.order }
-        let todays = tasks.filter { !$0.isDone && !$0.removed && $0.isForToday }
-            .sorted { ($0.isOverdue ? 0 : 1, -$0.priority) < ($1.isOverdue ? 0 : 1, -$1.priority) }
+        // Shabbat and the festivals have no tasks to offer.
+        let isRest: Bool = JewishDay.of(now).isRest
+        let cue: DayJournal.Intention? = isRest ? nil : DayJournal.intention
+        var todays: [ListItem] = isRest ? [] : DayPlan.ordered(tasks.filter { !$0.isDone && !$0.removed && $0.isForToday })
+        if let cue, let index = todays.firstIndex(where: { $0.id == cue.taskID }) {
+            todays.insert(todays.remove(at: index), at: 0)
+        }
 
         if let pin {
             switch pin.kind {
@@ -74,12 +79,24 @@ enum Deck {
                 if let task = tasks.first(where: { $0.id == pin.id && !$0.isDone && !$0.removed }) {
                     return OnDeck(target: .task(task), title: task.title, detail: "בחרתם · מטלה",
                                   symbol: "checklist", artwork: Theme.emerald,
-                                  minutes: task.minutes > 0 ? task.minutes : 25, isPinned: true)
+                                  minutes: DayJournal.estimate(task), isPinned: true)
                 }
             }
         }
 
+        // The first step the family set for today comes up at its minute.
+        if let cue, minute >= cue.minute - 2, minute <= cue.minute + 90, let task = todays.first, task.id == cue.taskID {
+            let spot: String = cue.place.isEmpty ? "" : " · " + cue.place
+            return OnDeck(target: .task(task), title: task.title, detail: "הזמן שקבעתם" + spot,
+                          symbol: "figure.walk", artwork: Theme.violet, minutes: DayJournal.estimate(task))
+        }
+
         if let current = list.first(where: { $0.startMinute <= minute && minute < $0.endMinute && !$0.isDone(on: now) }) {
+            // Time that is theirs to fill shows the task that fills it.
+            if current.holdsTasks, let task = todays.first {
+                return OnDeck(target: .task(task), title: task.title, detail: "בזמן \(current.title) · המטלה הבאה",
+                              symbol: "checklist", artwork: Theme.emerald, minutes: DayJournal.estimate(task))
+            }
             return schedule(current, minute: minute)
         }
         let next = list.first { $0.startMinute > minute && !$0.isDone(on: now) }
@@ -90,7 +107,7 @@ enum Deck {
             let more = todays.count - 1
             return OnDeck(target: .task(task), title: task.title,
                           detail: more > 0 ? "המטלה הבאה · ועוד \(more) להיום" : "המטלה הבאה שלך",
-                          symbol: "checklist", artwork: Theme.emerald, minutes: task.minutes > 0 ? task.minutes : 25)
+                          symbol: "checklist", artwork: Theme.emerald, minutes: DayJournal.estimate(task))
         }
         if let habit = openHabits.first, minute < 23 * 60 {
             return OnDeck(target: .habit(habit), title: habit.title,

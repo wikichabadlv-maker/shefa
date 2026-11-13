@@ -9,8 +9,9 @@ enum Launch {
     static var tab: AppTab {
         if screen.hasPrefix("finance") { return .finance }
         switch screen {
-        case "schedule": return .schedule
-        case "tasks": return .tasks
+        case "schedule", "routine", "erev": return .schedule
+        case "tasks", "task-stuck", "plan-day", "plan-day-pick", "plan-day-first",
+             "close-day", "close-day-left", "close-day-next": return .tasks
         case "notes", "achievements", "settings", "zmanim", "books", "study": return .more
         case "task", "shopping": return .tasks
         case "more": return .more
@@ -77,6 +78,15 @@ enum Launch {
         }
     }
 
+    /// The step a day's sitting opens on, for a test run.
+    static var flowStep: Int {
+        switch screen {
+        case "plan-day-pick", "close-day-left": return 1
+        case "plan-day-first", "close-day-next": return 2
+        default: return 0
+        }
+    }
+
     /// Scroll position for long screens: "top" or a named anchor.
     static let anchor = UserDefaults.standard.string(forKey: "anchor") ?? ""
 
@@ -100,4 +110,7 @@ final class AppRouter {
     var financeRoute: FinanceRoute? = Launch.financeRoute
     /// The quick sorting of lines that wait for an answer.
     var isReviewing = Launch.screen == "finance-review"
+    /// The morning sitting that builds the day, and the evening one that closes it.
+    var isPlanningDay = false
+    var isClosingDay = false
 }
