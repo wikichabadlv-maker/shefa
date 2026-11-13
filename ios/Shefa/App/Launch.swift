@@ -67,6 +67,10 @@ final class AppRouter {
     static let shared = AppRouter()
     var financeSection: FinanceSection = Launch.financeSection
     var tasksSection: TasksSection = Launch.screen == "shopping" ? .shopping : .tasks
+    /// What the user chose to keep on the floating bar today.
+    var deckPin = UserDefaults.standard.string(forKey: "deck.pin") ?? ""
+    /// The area open inside "More".
+    var morePath: [String] = Launch.morePath
     var isQuickAdding = false
     var isNowPlaying = false
 }

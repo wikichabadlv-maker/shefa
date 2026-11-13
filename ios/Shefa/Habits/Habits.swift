@@ -41,14 +41,29 @@ final class Habit {
 
     var streak: Int { DayKey.streak(days, skipShabbat: true) }
 
+    /// Added later at the family's request: mikveh first in the morning, and
+    /// the Chitas pillar named without "and Tehillim".
+    private static func addMikvehIfNeeded(in context: ModelContext) {
+        let key = "addedMikveh"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        let habits = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
+        for habit in habits where habit.title == "חת״ת ותהילים" { habit.title = "חת״ת" }
+        if !habits.contains(where: { $0.id == "habit-mikveh" }) {
+            context.insert(Habit(id: "habit-mikveh", title: "מקווה", symbol: "drop.fill", palette: 5, order: -1))
+        }
+        try? context.save()
+        UserDefaults.standard.set(true, forKey: key)
+    }
+
     /// The six daily pillars the family asked for, added once and fully editable.
     static func addDefaultsIfNeeded(in context: ModelContext) {
         let key = "addedDefaultHabits"
+        addMikvehIfNeeded(in: context)
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         let defaults: [(String, String, String, Int)] = [
             ("shacharit", "שחרית", "sunrise.fill", 4),
             ("torah", "קביעות לתורה", "book.fill", 0),
-            ("chitas", "חת״ת ותהילים", "text.book.closed.fill", 1),
+            ("chitas", "חת״ת", "text.book.closed.fill", 1),
             ("mincha", "מנחה", "sun.max.fill", 6),
             ("tzedakah", "צדקה יומית", "heart.fill", 2),
             ("arvit", "ערבית וק״ש", "moon.stars.fill", 7),

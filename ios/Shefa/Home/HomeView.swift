@@ -42,6 +42,7 @@ struct HomeView: View {
                         .padding(.bottom, -14)
 
                     RenewBanner()
+                    BackupBanner()
 
                     if !backend.isSignedIn {
                         signInBanner
@@ -126,7 +127,7 @@ struct HomeView: View {
                     Text("התחברות לחשבון המשפחתי")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(Color.primary)
-                    Text("כדי לקבל את תנועות הבנק והאשראי ולשתף הכול בין שני הטלפונים")
+                    Text("בלי התחברות התוכן לא מגובה. אחריה מגיעות גם תנועות הבנק, והכול משותף לשני הטלפונים.")
                         .font(.system(size: 13))
                         .foregroundStyle(Color.secondary)
                         .multilineTextAlignment(.leading)

@@ -17,6 +17,8 @@ struct SettingsView: View {
     @AppStorage(Notifier.shmaKey) private var notifyShma = false
     @AppStorage(Notifier.sunsetKey) private var notifySunset = false
     @AppStorage(Coach.enabledKey) private var notifyCoach = true
+    @State private var backup = Backup.shared
+    @State private var showsQuestions = false
     @State private var finder = LocationFinder.shared
     @State private var notificationsBlocked = false
 
@@ -67,6 +69,21 @@ struct SettingsView: View {
                 } footer: {
                     Text("התנועות נמשכות מהבנק אוטומטית חמש פעמים ביום, ומגיעות לכאן בכל פתיחה של האפליקציה.")
                 }
+                Section {
+                    LabeledContent("גיבוי אחרון", value: backup.lastSaved.map {
+                        $0.formatted(Date.FormatStyle(locale: Ledger.hebrew).weekday(.abbreviated).hour().minute())
+                    } ?? "עוד לא בוצע")
+                    Button("גיבוי עכשיו", systemImage: "icloud.and.arrow.up") {
+                        Task { await backup.sync(in: context, force: true) }
+                    }
+                    if let error = backup.lastError {
+                        Text("הגיבוי לא הצליח: " + error).foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("גיבוי")
+                } footer: {
+                    Text("כל מה שמוזן באפליקציה נשמר בענן תוך דקה: מטלות, קניות, לו״ז, יעדים, קביעות היום, שיעורים, ספרים והגדרות. אחרי התקנה מחדש מתחברים, והכול חוזר. גם אם האפליקציה מפסיקה להיפתח כי לא חודשה בזמן, התוכן נשאר במכשיר ובענן.")
+                }
             } else {
                 Section {
                     TextField("אימייל", text: $email)
@@ -93,7 +110,7 @@ struct SettingsView: View {
                 } header: {
                     Text("כניסה לחשבון המשפחתי")
                 } footer: {
-                    Text("אחרי הכניסה מגיעות לכאן תנועות הבנק והאשראי, והרשימות, היעדים והלו״ז משותפים לשני הטלפונים.")
+                    Text("אחרי הכניסה מגיעות לכאן תנועות הבנק והאשראי, הרשימות, היעדים והלו״ז משותפים לשני הטלפונים, וכל התוכן מגובה בענן. בלי כניסה אין גיבוי.")
                 }
             }
 
@@ -142,12 +159,12 @@ struct SettingsView: View {
             }
 
             Section {
-                Button("לענות מחדש על שאלות ההיכרות") {
-                    Coach.forgetAnswers()
-                    Notifier.shared.refresh(in: context)
-                }
+                Button("שאלות ההיכרות", systemImage: "sparkles") { showsQuestions = true }
             } footer: {
-                Text("המאמן שואל בדף הבית שאלה קצרה אחת ביום, ולפי התשובות מתאים את ההתראות וההצעות.")
+                Text("לפי התשובות האפליקציה מתאימה את ההתראות וההצעות. אפשר לשנות בכל רגע.")
+            }
+            .sheet(isPresented: $showsQuestions, onDismiss: { Notifier.shared.refresh(in: context) }) {
+                CoachQuestionsSheet()
             }
 
             Section("כספים") {

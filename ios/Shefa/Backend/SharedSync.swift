@@ -92,6 +92,7 @@ final class SharedSync {
             let token = try await backend.validToken()
             let data = try await backend.send("rest/v1/shared_items", query: [
                 URLQueryItem(name: "select", value: "id,kind,data,deleted,updated_ms"),
+                URLQueryItem(name: "kind", value: "neq.backup"),
             ], token: token)
             let remote = try JSONDecoder().decode([SharedRow].self, from: data)
             var byID: [String: SharedRow] = [:]
@@ -117,6 +118,7 @@ final class SharedSync {
         } catch {
             lastError = error.localizedDescription
         }
+        await Backup.shared.sync(in: context)
     }
 
     /// Decides what to do with one local item against its remote copy.

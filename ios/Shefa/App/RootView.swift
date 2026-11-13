@@ -12,6 +12,8 @@ struct RootView: View {
     @State private var selection: AppTab = Launch.tab
     @State private var router = AppRouter.shared
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var ticks = 0
 
     var body: some View {
         TabView(selection: $selection) {
@@ -31,7 +33,7 @@ struct RootView: View {
                 TasksView()
                     .tabEntrance(selection == .tasks)
             }
-            Tab(value: AppTab.more, role: .search) {
+            Tab("עוד", systemImage: "square.grid.2x2.fill", value: AppTab.more) {
                 MoreView()
                     .tabEntrance(selection == .more)
             }
@@ -48,6 +50,15 @@ struct RootView: View {
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
             FocusTimer.shared.tick(now: now)
+            // Anything changed on this phone reaches the cloud within a minute.
+            ticks += 1
+            if ticks % 60 == 0 { Task { await Backup.shared.sync(in: context) } }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active {
+                try? context.save()
+                Task { await SharedSync.shared.run(in: context) }
+            }
         }
         .task {
             ExcelImport.importIfNeeded(in: context)
@@ -61,6 +72,7 @@ struct RootView: View {
             }
             Notifier.shared.refresh(in: context)
             await Backend.shared.sync(into: context)
+            await SharedSync.shared.run(in: context)
         }
     }
 }

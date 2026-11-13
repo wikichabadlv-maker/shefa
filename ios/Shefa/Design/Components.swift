@@ -48,34 +48,38 @@ struct SectionHeader: View {
 /// What is on now in the family's schedule, floating above the tab bar on
 /// every screen like a mini player. Tapping it opens the full screen.
 struct NowTaskBar: View {
+    @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<ScheduleItem> { !$0.removed }, sort: \ScheduleItem.startMinute)
     private var items: [ScheduleItem]
     @Query(filter: #Predicate<ListItem> { $0.kind == "task" && !$0.removed && !$0.isDone },
            sort: \ListItem.createdAt, order: .reverse)
     private var tasks: [ListItem]
+    @Query(filter: #Predicate<Habit> { !$0.removed }, sort: \Habit.order) private var habits: [Habit]
     @State private var timer = FocusTimer.shared
+    @State private var router = AppRouter.shared
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: timer.isRunning ? 1 : 30)) { timeline in
             let now = timeline.date
-            let top = tasks.first(where: \.isForToday)?.title
-            let status = NowStatus.make(items: items, topTask: top, now: now)
-            let title = timer.isActive ? timer.title : status.title
+            let _ = router.deckPin
+            let deck = Deck.current(items: items, habits: habits, tasks: tasks, now: now)
+            let title = timer.isActive ? timer.title : deck.title
             let detail = timer.isActive
                 ? (timer.isRunning ? "מיקוד · נשארו \(FocusTimer.clock(timer.remaining(at: now)))" : "מיקוד מושהה")
-                : status.detail
-            let share = timer.isActive ? timer.progress(at: now) : (status.progress ?? 0)
-            HStack(spacing: 10) {
+                : deck.detail
+            let share = timer.isActive ? timer.progress(at: now) : (deck.progress ?? 0)
+            HStack(spacing: 4) {
                 Button {
                     AppRouter.shared.isNowPlaying = true
                 } label: {
                     HStack(spacing: 10) {
-                        ArtworkIcon(artwork: status.artwork, symbol: timer.isActive ? "timer" : status.symbol, size: 32)
+                        ArtworkIcon(artwork: deck.artwork, symbol: timer.isActive ? "timer" : deck.symbol, size: 32)
                         VStack(alignment: .leading, spacing: 0) {
                             Text(title)
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(Color.primary)
                                 .lineLimit(1)
+                                .contentTransition(.opacity)
                             Text(detail)
                                 .font(.system(size: 12))
                                 .monospacedDigit()
@@ -85,15 +89,28 @@ struct NowTaskBar: View {
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
+                    .animation(.section, value: title)
                 }
                 .buttonStyle(.pressable)
                 .accessibilityHint("פתיחת מסך מלא")
+
+                if deck.canComplete {
+                    Button {
+                        withAnimation(.section) { Deck.complete(deck, in: context) }
+                    } label: {
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 23, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(width: 40, height: 44)
+                    }
+                    .accessibilityLabel("סימון כבוצע")
+                }
                 Button {
                     AppRouter.shared.isQuickAdding = true
                 } label: {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 16, weight: .bold))
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 44)
                 }
                 .accessibilityLabel("הוספה מהירה")
             }

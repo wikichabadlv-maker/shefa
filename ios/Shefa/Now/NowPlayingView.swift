@@ -11,6 +11,8 @@ struct NowPlayingView: View {
     @Query(filter: #Predicate<ListItem> { $0.kind == "task" && !$0.removed && !$0.isDone },
            sort: \ListItem.createdAt, order: .reverse)
     private var openTasks: [ListItem]
+    @Query(filter: #Predicate<Habit> { !$0.removed }, sort: \Habit.order) private var habits: [Habit]
+    @State private var router = AppRouter.shared
 
     @State private var timer = FocusTimer.shared
     @State private var picked: Int?
@@ -40,7 +42,20 @@ struct NowPlayingView: View {
         let minutes: Int
     }
 
-    private func shown(list: [ScheduleItem], index: Int?, minute: Int) -> Shown {
+    private func shown(list: [ScheduleItem], index: Int?, minute: Int, deck: OnDeck) -> Shown {
+        if picked == nil {
+            // The screen opens on exactly what the floating bar shows.
+            switch deck.target {
+            case .habit(let habit):
+                return Shown(title: habit.title, subtitle: deck.detail, symbol: habit.symbol, artwork: habit.artwork,
+                             item: nil, isCurrent: false, minutes: deck.minutes)
+            case .task(let task):
+                return Shown(title: task.title, subtitle: deck.detail, symbol: "checklist", artwork: Theme.emerald,
+                             item: nil, isCurrent: false, minutes: deck.minutes)
+            default:
+                break
+            }
+        }
         if let index, list.indices.contains(index) {
             let item = list[index]
             let isCurrent = item.startMinute <= minute && minute < item.endMinute
@@ -66,8 +81,12 @@ struct NowPlayingView: View {
     private func content(now: Date) -> some View {
         let minute = ScheduleItem.minute(of: now)
         let list = NowStatus.today(allItems, on: now)
-        let index = picked ?? defaultIndex(list, minute: minute)
-        let item = shown(list: list, index: index, minute: minute)
+        let _ = router.deckPin
+        let deck = Deck.current(items: allItems, habits: habits, tasks: openTasks, now: now)
+        var deckIndex: Int?
+        if case .schedule(let onDeck) = deck.target { deckIndex = list.firstIndex { $0.id == onDeck.id } }
+        let index = picked ?? deckIndex ?? defaultIndex(list, minute: minute)
+        let item = shown(list: list, index: index, minute: minute, deck: deck)
         let focusOn = timer.isActive
         let isLive = focusOn ? timer.isRunning : item.isCurrent
 
@@ -109,7 +128,7 @@ struct NowPlayingView: View {
 
                 controls(item, list: list, index: index, now: now)
 
-                actions(item)
+                actions(item, deck: deck)
 
                 queue(list: list, index: index, minute: minute)
             }
@@ -231,8 +250,13 @@ struct NowPlayingView: View {
         .environment(\.layoutDirection, .leftToRight)
     }
 
-    private func actions(_ item: Shown) -> some View {
+    private func actions(_ item: Shown, deck: OnDeck) -> some View {
         HStack(spacing: 10) {
+            if picked == nil, item.item == nil, deck.canComplete {
+                pill("סימון כבוצע", "checkmark.circle") {
+                    withAnimation(.section) { Deck.complete(deck, in: context) }
+                }
+            }
             if let real = item.item {
                 let isDone = real.isDone()
                 pill(isDone ? "בוצע" : "סימון כבוצע", isDone ? "checkmark.circle.fill" : "checkmark.circle") {
@@ -277,7 +301,9 @@ struct NowPlayingView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 ForEach(upcoming, id: \.element.id) { pair in
                     Button {
+                        Deck.setPin(kind: "schedule", id: pair.element.id)
                         withAnimation(.snappy) { picked = pair.offset }
+                        Feedback.tap()
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: pair.element.symbol)
@@ -304,6 +330,34 @@ struct NowPlayingView: View {
                 }
             }
 
+            let openHabits = habits.filter { !$0.isDone() }
+            if !openHabits.isEmpty {
+                Text("מקביעות היום")
+                    .font(.system(size: 18, weight: .heavy))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 8)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(openHabits) { habit in
+                            Button {
+                                Deck.setPin(kind: "habit", id: habit.id)
+                                withAnimation(.snappy) { picked = nil }
+                                Feedback.tap()
+                            } label: {
+                                Label(habit.title, systemImage: habit.symbol)
+                                    .font(.system(size: 14, weight: .bold))
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 40)
+                                    .background(.white.opacity(0.18), in: Capsule())
+                            }
+                            .buttonStyle(.pressable)
+                            .accessibilityHint("להעלות לרצועה")
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+
             if !todayTasks.isEmpty {
                 Text("המטלות של היום")
                     .font(.system(size: 18, weight: .heavy))
@@ -311,11 +365,12 @@ struct NowPlayingView: View {
                     .padding(.top, 8)
                 ForEach(todayTasks.prefix(5)) { task in
                     Button {
-                        withAnimation(.snappy) { TaskRules.setDone(task, true, in: context) }
-                        Feedback.done()
+                        Deck.setPin(kind: "task", id: task.id)
+                        withAnimation(.snappy) { picked = nil }
+                        Feedback.tap()
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "circle")
+                            Image(systemName: "play.circle")
                                 .font(.system(size: 24))
                                 .frame(width: 42, height: 42)
                             Text(task.title)
@@ -326,7 +381,7 @@ struct NowPlayingView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.pressable)
-                    .accessibilityHint("סימון כבוצע")
+                    .accessibilityHint("להעלות לרצועה")
                 }
             }
         }

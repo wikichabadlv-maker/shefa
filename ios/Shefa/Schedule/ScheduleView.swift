@@ -43,12 +43,10 @@ struct ScheduleView: View {
             VStack(alignment: .leading, spacing: 18) {
                 DayStrip(day: $day)
                 DayHero(items: todays, day: day, now: now, isToday: isToday)
+                QuickScheduleBar(day: day, todays: todays)
+                timeline(now: now)
                 if isToday {
                     HabitsCard()
-                }
-                timeline(now: now)
-                if items.isEmpty {
-                    starters
                 }
             }
             .padding(.horizontal, 16)
@@ -66,7 +64,7 @@ struct ScheduleView: View {
                 .font(.system(size: 22, weight: .heavy))
                 .padding(.horizontal, 4)
             if list.isEmpty {
-                Text(items.isEmpty ? "עוד לא הוספתם דבר ללו״ז." : "אין דברים בלו״ז ליום הזה.")
+                Text(items.isEmpty ? "עוד לא הוספתם דבר ללו״ז. נגיעה באחת ההצעות למעלה מוסיפה אותה מיד." : "אין דברים בלו״ז ליום הזה.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -77,6 +75,7 @@ struct ScheduleView: View {
                         let isNow = isToday && item.startMinute <= minute && minute < item.endMinute
                         let isPast = isToday && item.endMinute <= minute
                         row(item, isDone: isDone, isNow: isNow, isPast: isPast)
+                            .transition(.sectionSwap)
                         if item.id != list.last?.id {
                             Divider().padding(.leading, 112)
                         }
@@ -147,46 +146,43 @@ struct ScheduleView: View {
             .accessibilityLabel(isDone ? "ביטול הסימון" : "סימון כבוצע")
         }
         .frame(minHeight: 58)
+        .contextMenu {
+            Button("להקדים ברבע שעה", systemImage: "arrow.up") { shift(item, by: -15) }
+            Button("לדחות ברבע שעה", systemImage: "arrow.down") { shift(item, by: 15) }
+            Button("לקצר ברבע שעה", systemImage: "minus") { stretch(item, by: -15) }
+            Button("להאריך ברבע שעה", systemImage: "plus") { stretch(item, by: 15) }
+            Button("עריכה", systemImage: "pencil") { editing = item }
+            Button("מחיקה", systemImage: "trash", role: .destructive) {
+                withAnimation(.section) {
+                    item.removed = true
+                    item.updatedAt = .now
+                }
+                changed()
+            }
+        }
     }
 
-    // MARK: Starters
-
-    private var starters: some View {
-        let ideas: [ScheduleDraft] = [
-            ScheduleDraft(title: "שחרית", start: 7 * 60, duration: 60, symbol: "sunrise.fill", palette: 4),
-            ScheduleDraft(title: "חת״ת ורמב״ם", start: 8 * 60, duration: 30, symbol: "book.fill", palette: 0),
-            ScheduleDraft(title: "דף יומי", start: 6 * 60, duration: 45, symbol: "book.fill", palette: 1),
-            ScheduleDraft(title: "עבודה", start: 9 * 60, duration: 480, weekdays: 0b0011111, symbol: "briefcase.fill", palette: 7),
-            ScheduleDraft(title: "חברותא", start: 20 * 60, duration: 60, symbol: "person.2.fill", palette: 3),
-            ScheduleDraft(title: "זמן זוגי", start: 21 * 60, duration: 45, symbol: "heart.fill", palette: 2),
-        ]
-        return VStack(alignment: .leading, spacing: 10) {
-            Text("בונים את היום שלכם")
-                .font(.system(size: 18, weight: .heavy))
-            Text("הוסיפו את החלקים הקבועים של היום. בזמן אמת הם מופיעים ברצועה שמעל התפריט, ולחיצה עליה פותחת מסך מיקוד מלא.")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(ideas) { idea in
-                        Button {
-                            draft = idea
-                        } label: {
-                            Label(idea.title, systemImage: idea.symbol)
-                                .font(.system(size: 14, weight: .bold))
-                                .padding(.horizontal, 14)
-                                .frame(height: 38)
-                                .background(Theme.chip, in: Capsule())
-                        }
-                        .buttonStyle(.pressable)
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
+    private func shift(_ item: ScheduleItem, by minutes: Int) {
+        withAnimation(.section) {
+            item.startMinute = min(max(item.startMinute + minutes, 0), 23 * 60 + 45)
+            item.updatedAt = .now
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
+        changed()
+    }
+
+    private func stretch(_ item: ScheduleItem, by minutes: Int) {
+        withAnimation(.section) {
+            item.durationMinutes = max(item.durationMinutes + minutes, 5)
+            item.updatedAt = .now
+        }
+        changed()
+    }
+
+    private func changed() {
+        try? context.save()
+        SharedSync.shared.changed(in: context)
+        Notifier.shared.refresh(in: context)
+        Feedback.tap()
     }
 }
 

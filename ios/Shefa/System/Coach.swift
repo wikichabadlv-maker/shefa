@@ -129,6 +129,7 @@ enum Coach {
         UserDefaults.standard.set(DayKey.of(), forKey: askedKey)
     }
 
+
     static func skipToday() {
         UserDefaults.standard.set(DayKey.of(), forKey: askedKey)
     }
@@ -380,5 +381,64 @@ struct CoachCard: View {
         .frame(width: 260, height: 178, alignment: .leading)
         .background(insight.artwork.gradient, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// All the questions at once, each with its current answer, to answer or change.
+struct CoachQuestionsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var answers: [String: String] = [:]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(Coach.questions) { question in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(question.text)
+                                .font(.system(size: 18, weight: .heavy))
+                            Text(question.why)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                ForEach(question.options, id: \.value) { option in
+                                    let isOn = answers[question.id] == option.value
+                                    Button {
+                                        Coach.setAnswer(question.id, option.value)
+                                        withAnimation(.section) { answers[question.id] = option.value }
+                                        Feedback.tap()
+                                    } label: {
+                                        Text(option.label)
+                                            .font(.system(size: 14, weight: .bold))
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 40)
+                                            .foregroundStyle(isOn ? Theme.ground : Color.primary)
+                                            .background(isOn ? Color.primary : Theme.chip, in: Capsule())
+                                            .minimumScaleFactor(0.8)
+                                    }
+                                    .buttonStyle(.pressable)
+                                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .cardSurface()
+                    }
+                }
+                .padding(16)
+            }
+            .background(Theme.ground)
+            .navigationTitle("שאלות ההיכרות")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("סיום") { dismiss() }
+                }
+            }
+            .onAppear {
+                for question in Coach.questions { answers[question.id] = Coach.answer(question.id) }
+            }
+        }
+        .environment(\.layoutDirection, .rightToLeft)
     }
 }

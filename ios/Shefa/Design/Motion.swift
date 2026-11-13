@@ -29,14 +29,14 @@ struct TabEntrance: ViewModifier {
     /// Content starts visible, so nothing can ever stay hidden; only a
     /// switch between tabs plays the entrance.
     @State private var isShown = true
+    @State private var lastPlayed = Date.distantPast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @MainActor private static var hasLaunched = false
 
     func body(content: Content) -> some View {
         content
             .opacity(isShown ? 1 : 0)
-            .scaleEffect(isShown || reduceMotion ? 1 : 0.97)
-            .offset(y: isShown || reduceMotion ? 0 : 14)
+            .offset(y: isShown || reduceMotion ? 0 : 10)
             .onAppear {
                 // The first screen after launch simply appears.
                 if Self.hasLaunched, isActive { play() }
@@ -48,12 +48,16 @@ struct TabEntrance: ViewModifier {
     }
 
     private func play() {
+        // A tab seen for the first time reports both "appeared" and "became
+        // active"; the entrance must run once, or the screen visibly jumps.
+        guard Date.now.timeIntervalSince(lastPlayed) > 0.6 else { return }
+        lastPlayed = .now
         var instant = Transaction()
         instant.disablesAnimations = true
         withTransaction(instant) { isShown = false }
         // The hidden state has to be drawn once before the glide in starts.
         Task { @MainActor in
-            withAnimation(.spring(duration: 0.45, bounce: 0.2)) { isShown = true }
+            withAnimation(.smooth(duration: 0.32)) { isShown = true }
         }
     }
 }
@@ -68,11 +72,10 @@ extension AnyTransition {
     /// One section of a screen giving way to another: the new one rises in
     /// softly while the old one fades.
     static var sectionSwap: AnyTransition {
-        .asymmetric(insertion: .opacity.combined(with: .offset(y: 16)).combined(with: .scale(scale: 0.985)),
-                    removal: .opacity)
+        .asymmetric(insertion: .opacity.combined(with: .offset(y: 12)), removal: .opacity)
     }
 }
 
 extension Animation {
-    static var section: Animation { .spring(duration: 0.42, bounce: 0.18) }
+    static var section: Animation { .smooth(duration: 0.34) }
 }
