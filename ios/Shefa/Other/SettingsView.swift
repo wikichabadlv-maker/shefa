@@ -165,6 +165,10 @@ struct SettingsView: View {
 
             Section {
                 LabeledContent("גרסה", value: version)
+                if let expiry = Signing.expiry, Signing.daysLeft != nil {
+                    LabeledContent("לחדש ב-SideStore עד",
+                                   value: expiry.formatted(Date.FormatStyle(locale: Ledger.hebrew).weekday(.wide).day().month(.wide)))
+                }
             }
         }
         .navigationTitle("הגדרות")

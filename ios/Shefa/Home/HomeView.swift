@@ -40,6 +40,8 @@ struct HomeView: View {
                         .padding(.horizontal, 4)
                         .padding(.bottom, -14)
 
+                    RenewBanner()
+
                     if !backend.isSignedIn {
                         signInBanner
                     }
