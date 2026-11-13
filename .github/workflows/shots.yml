@@ -1,0 +1,89 @@
+name: צילומי מסך
+
+on:
+  workflow_dispatch:
+    inputs:
+      screens:
+        description: Screens to capture, separated by spaces
+        default: "home finance-overview finance-transactions finance-budget finance-savings tasks more schedule"
+      dark:
+        description: Also capture in dark mode (yes/no)
+        default: "no"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shots
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select the newest Xcode
+        run: |
+          newest=$(ls -d /Applications/Xcode_26*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+
+      - name: Build for the simulator
+        working-directory: ios
+        run: |
+          which xcodegen || brew install xcodegen
+          xcodegen generate
+          set -o pipefail
+          xcodebuild build -project Shefa.xcodeproj -scheme Shefa -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            | tee build.log | grep -E "error:|BUILD" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Capture
+        env:
+          SCREENS: ${{ inputs.screens }}
+          DARK: ${{ inputs.dark }}
+        run: |
+          device=$(xcrun simctl list devices available | grep -E "iPhone 1[67] Pro Max" | head -1 | grep -oE "[0-9A-F-]{36}")
+          if [ -z "$device" ]; then
+            device=$(xcrun simctl list devices available | grep -E "iPhone" | head -1 | grep -oE "[0-9A-F-]{36}")
+          fi
+          xcrun simctl list devices available | grep "$device"
+          xcrun simctl boot "$device"
+          xcrun simctl bootstatus "$device" -b
+          xcrun simctl install "$device" ios/build/Build/Products/Debug-iphonesimulator/Shefa.app
+          xcrun simctl status_bar "$device" override --time "9:41" --batteryState charged --batteryLevel 100 || true
+          mkdir -p shots
+          capture() {
+            for item in $SCREENS; do
+              screen="${item%%@*}"
+              anchor=""
+              if [ "$item" != "$screen" ]; then anchor="${item#*@}"; fi
+              xcrun simctl terminate "$device" app.shefa.ios >/dev/null 2>&1 || true
+              xcrun simctl launch "$device" app.shefa.ios -screen "$screen" -anchor "$anchor"
+              sleep 7
+              name="$screen"
+              if [ -n "$anchor" ]; then name="$screen-$anchor"; fi
+              xcrun simctl io "$device" screenshot "shots/$name$1.png"
+              sips -Z 1500 "shots/$name$1.png" >/dev/null
+            done
+          }
+          xcrun simctl ui "$device" appearance light
+          capture ""
+          if [ "$DARK" = "yes" ]; then
+            xcrun simctl ui "$device" appearance dark
+            capture "-dark"
+          fi
+
+      - name: Publish to the screenshots branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd shots
+          git init -q
+          git checkout -q -b screenshots
+          git add .
+          git -c user.name="shefa-bot" -c user.email="bot@users.noreply.github.com" commit -q -m "Screenshots for $GITHUB_SHA"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" screenshots

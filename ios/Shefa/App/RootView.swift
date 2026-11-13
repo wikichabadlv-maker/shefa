@@ -8,7 +8,7 @@ enum AppTab: Hashable {
 /// The app shell: a native glass tab bar, a separate round button for search
 /// and the remaining areas, and the current schedule task floating above it.
 struct RootView: View {
-    @State private var selection: AppTab = .home
+    @State private var selection: AppTab = Launch.tab
     @Environment(\.modelContext) private var context
 
     var body: some View {

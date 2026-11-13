@@ -11,7 +11,7 @@ enum FinanceSection: String, CaseIterable, Identifiable {
 }
 
 struct FinanceView: View {
-    @State private var section: FinanceSection = .transactions
+    @State private var section: FinanceSection = Launch.financeSection
     @State private var query = ""
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
 
