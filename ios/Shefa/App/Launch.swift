@@ -28,6 +28,16 @@ enum Launch {
         }
     }
 
+    /// A screen inside the finance tab to open right away.
+    static var financeRoute: FinanceRoute? {
+        switch screen {
+        case "finance-horizon", "finance-planned", "finance-balance": return .horizon
+        case "finance-salary": return .salary
+        case "finance-status": return .status
+        default: return nil
+        }
+    }
+
     /// Paints the month card in one of its moods, for a test run: "watch" or "over".
     static var mood: MonthSummary.Mood? {
         switch UserDefaults.standard.string(forKey: "mood") ?? "" {
@@ -86,4 +96,8 @@ final class AppRouter {
     var morePath: [String] = Launch.morePath
     var isQuickAdding = false
     var isNowPlaying = false
+    /// A screen pushed inside the finance tab.
+    var financeRoute: FinanceRoute? = Launch.financeRoute
+    /// The quick sorting of lines that wait for an answer.
+    var isReviewing = Launch.screen == "finance-review"
 }

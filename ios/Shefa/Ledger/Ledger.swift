@@ -95,6 +95,20 @@ struct LedgerDay: Identifiable {
 enum Ledger {
     static let hebrew = Locale(identifier: "he_IL")
 
+    /// A number of days in words: "יום אחד", "יומיים" or "17 ימים".
+    static func daysText(_ count: Int) -> String {
+        switch count {
+        case 1: return "יום אחד"
+        case 2: return "יומיים"
+        default: return "\(count) ימים"
+        }
+    }
+
+    /// A day of the year in words, for example "10 בדצמבר".
+    static func dayText(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(locale: hebrew).day().month(.wide))
+    }
+
     /// The merchant name without branch numbers, used to match similar purchases.
     static func merchantKey(_ title: String) -> String {
         let kept = title.unicodeScalars.filter { !CharacterSet.decimalDigits.contains($0) }

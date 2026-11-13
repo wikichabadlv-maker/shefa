@@ -1,14 +1,21 @@
 import Charts
+import SwiftData
 import SwiftUI
 
 /// The finance dashboard: the month as pictures, with the story on top.
 struct OverviewView: View {
+    /// The lines the month totals are made of.
     let entries: [LedgerEntry]
+    /// Every line, for looking ahead: bank lines of months that a monthly
+    /// summary covers still teach what returns.
+    let all: [LedgerEntry]
     let month: Date
     let summary: MonthSummary
     /// The group picked on the round chart.
     @State private var pickedID: String?
     @State private var showsStory = false
+    @State private var router = AppRouter.shared
+    @Query private var budgetLines: [BudgetLine]
 
     private struct Slice: Identifiable {
         let id: String
@@ -56,6 +63,28 @@ struct OverviewView: View {
 
         MonthHeroCard(month: summary)
             .cascade(0)
+
+        if Calendar.current.isDate(month, equalTo: .now, toGranularity: .month) {
+            // The present month also says what to do, and looks ahead.
+            let horizon: Horizon? = Forecast.horizon(all)
+            let step: NextStep = NextSteps.pick(entries: entries, summary: summary, budget: budgetLines,
+                                                horizon: horizon)
+            NextStepCard(step: step, act: act)
+                .cascade(1)
+                .id("step")
+            SpendWeekCard(entries: entries, summary: summary)
+                .cascade(2)
+                .id("week")
+            Button {
+                Feedback.tap()
+                router.financeRoute = .horizon
+            } label: {
+                UpcomingCard(horizon: horizon, upcoming: horizon == nil ? ahead : [])
+            }
+            .buttonStyle(.pressable)
+            .cascade(3)
+            .id("horizon")
+        }
 
         if summary.income > 0 || !list.isEmpty {
             storyTile
@@ -161,6 +190,23 @@ struct OverviewView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardSurface()
+    }
+
+    /// What is expected, for a home whose balance is not known.
+    private var ahead: [Upcoming] {
+        Forecast.upcoming(all, after: Date.now.addingTimeInterval(-86_400), until: Forecast.windowEnd())
+    }
+
+    /// Where the button of the next step leads.
+    private func act(_ target: NextStep.Target) {
+        switch target {
+        case .none: break
+        case .review: router.isReviewing = true
+        case .budget: router.financeSection = .budget
+        case .savings: router.financeSection = .savings
+        case .maaser: router.financeSection = .maaser
+        case .route(let route): router.financeRoute = route
+        }
     }
 
     /// Opens the month as a story of full colorful pages.
@@ -341,7 +387,7 @@ struct FlowBar: View {
         let total = max(parts.reduce(0) { $0 + $1.amount }, 1)
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("לאן הולכת ההכנסה")
+                Text(summary.salary > 0 ? "לאן הולכת משכורת הבית" : "לאן הולכת ההכנסה")
                     .font(.system(size: 17, weight: .heavy))
                 Spacer()
                 Text(Money.text(summary.income))
@@ -373,6 +419,14 @@ struct FlowBar: View {
                             .monospacedDigit()
                     }
                 }
+            }
+            if summary.salary > 0 {
+                Text(summary.surplus > 0
+                     ? "נכנסו \(Money.text(summary.surplus)) מעל משכורת הבית. הם נשארים בבנק, ככרית לחודש חלש."
+                     : "החודש בנוי על משכורת הבית. עד עכשיו נכנסו \(Money.text(summary.incomeSoFar)).")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(16)

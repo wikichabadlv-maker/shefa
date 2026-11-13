@@ -117,6 +117,16 @@ struct SettingsView: View {
             }
 
             Section {
+                NavigationLink {
+                    SystemStatusView()
+                } label: {
+                    Label("מצב החיבורים", systemImage: "antenna.radiowaves.left.and.right")
+                }
+            } footer: {
+                Text("מה מחובר, מתי התעדכן, ומה עושים כשמשהו נתקע.")
+            }
+
+            Section {
                 CityPicker()
                 if cityID == City.deviceID {
                     if finder.isWorking {

@@ -92,7 +92,7 @@ struct FinanceView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         switch section {
                         case .overview:
-                            OverviewView(entries: counted, month: month, summary: summary)
+                            OverviewView(entries: counted, all: entries, month: month, summary: summary)
                         case .transactions:
                             TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
                         case .budget:
@@ -125,6 +125,21 @@ struct FinanceView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("קו האופק", systemImage: "chart.line.uptrend.xyaxis") {
+                            router.financeRoute = .horizon
+                        }
+                        Button("משכורת הבית", systemImage: "equal.circle") {
+                            router.financeRoute = .salary
+                        }
+                        Button("מצב החיבורים", systemImage: "antenna.radiowaves.left.and.right") {
+                            router.financeRoute = .status
+                        }
+                    } label: {
+                        Label("עוד בפיננסים", systemImage: "ellipsis")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("הוספת תנועה", systemImage: "plus") { isAdding = true }
                 }
             }
@@ -133,6 +148,21 @@ struct FinanceView: View {
             }
             .navigationDestination(isPresented: $showsCategory) {
                 CategoryDetailView(category: SpendCategory.all[0], entries: counted, month: month)
+            }
+            .navigationDestination(item: $router.financeRoute) { route in
+                switch route {
+                case .horizon:
+                    HorizonView(entries: entries)
+                case .salary:
+                    SalaryView(entries: counted)
+                case .status:
+                    SystemStatusView()
+                case .category(let id):
+                    CategoryDetailView(category: SpendCategory.find(id) ?? .unknown, entries: counted, month: month)
+                }
+            }
+            .fullScreenCover(isPresented: $router.isReviewing) {
+                ReviewFlow()
             }
         }
     }

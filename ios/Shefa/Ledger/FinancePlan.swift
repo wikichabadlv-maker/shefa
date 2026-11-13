@@ -38,6 +38,8 @@ struct PlannedItem: Codable, Identifiable, Hashable {
     var isMonthly: Bool
     /// The day itself, for an item that happens once.
     var date: Date?
+    /// The key of the app's own guess that this item stands in for.
+    var replaces: String? = nil
 
     /// The amount as an exact figure.
     var value: Decimal { Decimal(string: String(format: "%.2f", amount)) ?? 0 }

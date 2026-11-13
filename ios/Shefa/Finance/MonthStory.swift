@@ -59,8 +59,8 @@ struct MonthStory: View {
                 kicker: "\(name) עד עכשיו", number: abs(left.double),
                 title: left >= 0 ? "נשאר לחיות ממנו" : "חריגה מהמסגרת",
                 text: left >= 0
-                    ? "כ־\(Money.text(summary.perDay)) ליום, ועוד \(MonthHeroCard.days(summary.daysLeft)) עד סוף החודש."
-                    : "ההוצאות עברו את מה שהחודש יכול לשאת, ונשארו עוד \(MonthHeroCard.days(summary.daysLeft))."))
+                    ? "כ־\(Money.text(summary.perDay)) ליום, ועוד \(Ledger.daysText(summary.daysLeft)) עד סוף החודש."
+                    : "ההוצאות עברו את מה שהחודש יכול לשאת, ונשארו עוד \(Ledger.daysText(summary.daysLeft))."))
         } else if flow.income > 0 || flow.spent > 0 {
             let net: Decimal = flow.income - flow.spent
             result.append(Page(

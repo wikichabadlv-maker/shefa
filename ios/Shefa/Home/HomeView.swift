@@ -396,7 +396,7 @@ struct MonthHeroCard: View {
 
     private var subtitle: String {
         if month.daysLeft <= 0 { return "סיכום החודש" }
-        let days: String = MonthHeroCard.days(month.daysLeft)
+        let days: String = Ledger.daysText(month.daysLeft)
         switch mood {
         case .over: return "עוד \(days) עד סוף החודש. שווה לדחות את מה שאפשר."
         case .watch: return "הכסף הולך מהר מהימים. כ־\(Money.text(month.perDay)) ליום עד סוף החודש."
@@ -482,15 +482,6 @@ struct MonthHeroCard: View {
         case .calm: return calm
         case .watch: return Artwork(0xD97706, 0xB45309)
         case .over: return Artwork(0xBE185D, 0x831843)
-        }
-    }
-
-    /// For example "יום אחד", "יומיים" or "17 ימים".
-    static func days(_ count: Int) -> String {
-        switch count {
-        case 1: return "יום אחד"
-        case 2: return "יומיים"
-        default: return "\(count) ימים"
         }
     }
 

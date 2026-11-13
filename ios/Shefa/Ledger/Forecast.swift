@@ -425,6 +425,8 @@ enum Forecast {
         detected.removeAll { hidden.contains($0.key) }
 
         var planned: [Upcoming] = []
+        // Guesses that the family replaced with its own figure, month by month.
+        var replaced: Set<String> = []
         for item in plan.planned {
             var dates: [Date] = []
             if item.isMonthly {
@@ -438,10 +440,13 @@ enum Forecast {
                 planned.append(Upcoming(key: "planned|" + item.id, date: date, title: item.title,
                                         amount: item.value, kind: item.amount > 0 ? .income : .planned,
                                         isKnown: true, plannedID: item.id))
+                if let key = item.replaces { replaced.insert(key + "@" + monthKey(date)) }
             }
         }
         // The family's own word wins over a guess about the same payment.
-        detected.removeAll { guess in planned.contains { isSame($0, guess) } }
+        detected.removeAll { guess in
+            replaced.contains(guess.key + "@" + monthKey(guess.date)) || planned.contains { isSame($0, guess) }
+        }
 
         return (detected + planned).sorted {
             $0.date != $1.date ? $0.date < $1.date : $0.id < $1.id
