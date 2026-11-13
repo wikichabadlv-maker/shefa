@@ -18,7 +18,7 @@ private struct AppArea: Identifiable {
 /// Search across the whole app, and the areas that are not in the tab bar.
 struct MoreView: View {
     @State private var query = ""
-    @State private var path: [String] = Launch.morePath
+    @State private var router = AppRouter.shared
     @Namespace private var zoom
     @State private var viewing: LedgerEntry?
     @Environment(\.modelContext) private var context
@@ -144,7 +144,7 @@ struct MoreView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: $router.morePath) {
             ScrollView {
                 if query.trimmingCharacters(in: .whitespaces).isEmpty {
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
@@ -168,7 +168,7 @@ struct MoreView: View {
                 destination(id)
                     .navigationTransition(.zoom(sourceID: id, in: zoom))
             }
-            .searchable(text: $query, prompt: "חיפוש בכל האפליקציה")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "חיפוש בכל האפליקציה")
             .sheet(item: $viewing) { entry in
                 EntryDetailSheet(entry: entry)
             }

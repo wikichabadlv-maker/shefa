@@ -41,6 +41,8 @@ struct HomeView: View {
                         .padding(.horizontal, 4)
                         .padding(.bottom, -14)
 
+                    shortcuts
+
                     RenewBanner()
                     BackupBanner()
 
@@ -115,6 +117,62 @@ struct HomeView: View {
                 StudyView()
             }
         }
+    }
+
+    private struct Shortcut: Identifiable {
+        let id: String
+        let title: String
+        let symbol: String
+        let artwork: Artwork
+    }
+
+    /// Every area of the app, one tap away.
+    private var shortcuts: some View {
+        let areas = [
+            Shortcut(id: "zmanim", title: "זמני היום", symbol: "sun.horizon.fill", artwork: Artwork(0x0EA5E9, 0x4F46E5)),
+            Shortcut(id: "study", title: "חת״ת ורמב״ם", symbol: "book.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
+            Shortcut(id: "shopping", title: "קניות", symbol: "cart.fill", artwork: Theme.green),
+            Shortcut(id: "books", title: "ספרים", symbol: "books.vertical.fill", artwork: Artwork(0x0891B2, 0x155E75)),
+            Shortcut(id: "notes", title: "לזכור", symbol: "lightbulb.fill", artwork: Theme.amber),
+            Shortcut(id: "learning", title: "חידושים", symbol: "sparkles", artwork: Theme.blue),
+            Shortcut(id: "achievements", title: "הישגים", symbol: "trophy.fill", artwork: Theme.violet),
+            Shortcut(id: "settings", title: "הגדרות", symbol: "gearshape.fill", artwork: Artwork(0x64748B, 0x334155)),
+        ]
+        return ScrollView(.horizontal) {
+            HStack(spacing: 14) {
+                ForEach(areas) { area in
+                    Button {
+                        if area.id == "shopping" {
+                            router.tasksSection = .shopping
+                            selection = .tasks
+                        } else {
+                            router.morePath = [area.id]
+                            selection = .more
+                        }
+                        Feedback.tap()
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: area.symbol)
+                                .font(.system(size: 21, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 56, height: 56)
+                                .background(area.artwork.gradient, in: Circle())
+                                .shadow(color: area.artwork.end.opacity(0.35), radius: 8, y: 5)
+                            Text(area.title)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                        }
+                        .frame(minWidth: 64)
+                    }
+                    .buttonStyle(.pressable)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 4)
+        }
+        .scrollIndicators(.hidden)
+        .padding(.horizontal, -16)
     }
 
     private var signInBanner: some View {
