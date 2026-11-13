@@ -61,7 +61,9 @@ struct SpendCategory: Identifiable, Hashable {
         all.filter { $0.id != incomeID && $0.id != maaserID && !notSpending.contains($0.id) }
     }
 
-    static let unknown = SpendCategory(id: "unknown", title: "לבירור", symbol: "questionmark", artwork: Theme.amber)
+    /// Not sorted yet, so it has no color of its own yet either.
+    static let unknown = SpendCategory(id: "unknown", title: "לבירור", symbol: "questionmark",
+                                       artwork: Artwork(0x78716C, 0x44403C))
 
     static func find(_ id: String?) -> SpendCategory? {
         guard let id else { return nil }

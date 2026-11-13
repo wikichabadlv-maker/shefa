@@ -227,7 +227,9 @@ struct BooksView: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .frame(width: height - 34, alignment: .leading)
-                    .rotationEffect(.degrees(-90))
+                    // A Hebrew spine reads from the top down. The turn is
+                    // mirrored in a right-to-left layout, hence the sign.
+                    .rotationEffect(.degrees(90))
             }
             .overlay(alignment: .top) {
                 Rectangle()

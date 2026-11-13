@@ -96,6 +96,9 @@ struct CategoryDetailView: View {
                         }
                     }
                     .frame(height: 190)
+                    // Room for the top label of the axis, which sits half
+                    // above the chart.
+                    .padding(.top, 8)
                     .reveal(.bottom, delay: 0.35)
                 }
                 .padding(16)
@@ -201,11 +204,7 @@ struct CategoryDetailView: View {
                 .lineLimit(2)
                 .minimumScaleFactor(0.7)
                 .padding(.top, 6)
-            CountUp(value: total.double) { Money.text(Decimal($0.rounded())) }
-                .font(.system(size: 58, weight: .heavy))
-                .monospacedDigit()
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
+            BigMoney(value: total.double, size: 62)
             if limit > 0 {
                 GrowBar(share: min(max((total / limit).double, 0), 1), height: 8,
                         track: .white.opacity(0.25), fill: Color.white)

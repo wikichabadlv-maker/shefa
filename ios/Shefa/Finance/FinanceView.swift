@@ -323,9 +323,7 @@ struct MaaserCard: View {
                 .pickerStyle(.segmented)
                 .frame(width: 190)
             }
-            CountUp(value: remaining.double) { Money.text(Decimal($0.rounded())) }
-                .font(.system(size: 50, weight: .heavy))
-                .monospacedDigit()
+            BigMoney(value: remaining.double, size: 54)
             GrowBar(share: share, height: 8, track: .white.opacity(0.25), fill: Color.white)
             HStack {
                 Text("ניתן \(Money.text(month.maaserGiven))")

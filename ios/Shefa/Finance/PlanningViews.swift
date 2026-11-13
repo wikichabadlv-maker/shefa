@@ -224,11 +224,7 @@ struct BudgetHero: View {
                 Text("נוצל ב\(Ledger.monthName(month))")
                     .font(.system(size: 15, weight: .semibold))
                     .opacity(0.9)
-                CountUp(value: used.double) { Money.text(Decimal($0.rounded())) }
-                    .font(.system(size: 42, weight: .heavy))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
+                BigMoney(value: used.double, size: 46)
                 if total > 0 {
                     Text("מתוך \(Money.text(total))")
                         .font(.system(size: 14, weight: .bold))
@@ -283,6 +279,9 @@ struct ProgressRing: View {
                 .animation(.smooth(duration: 0.5), value: target)
         }
         .padding(lineWidth / 2)
+        // A turn is mirrored in a right-to-left layout, which would start the
+        // ring at the bottom.
+        .environment(\.layoutDirection, .leftToRight)
         .accessibilityHidden(true)
     }
 }
@@ -371,11 +370,7 @@ struct SavingsList: View {
                     Text("חסכנו עד היום")
                         .font(.system(size: 15, weight: .semibold))
                         .opacity(0.9)
-                    CountUp(value: totalSaved.double) { Money.text(Decimal($0.rounded())) }
-                        .font(.system(size: 42, weight: .heavy))
-                        .monospacedDigit()
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
+                    BigMoney(value: totalSaved.double, size: 46)
                     if totalTarget > 0 {
                         Text("מתוך \(Money.text(totalTarget)) בכל היעדים")
                             .font(.system(size: 14, weight: .bold))
@@ -512,11 +507,7 @@ struct GoalCard: View {
                         .font(.system(size: 18, weight: .heavy))
                         .lineLimit(1)
                 }
-                CountUp(value: goal.saved.double) { Money.text(Decimal($0.rounded())) }
-                    .font(.system(size: 32, weight: .heavy))
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
+                BigMoney(value: goal.saved.double, size: 36)
                 Text("מתוך \(Money.text(goal.target)) · \(line)")
                     .font(.system(size: 13, weight: .semibold))
                     .opacity(0.9)

@@ -55,8 +55,9 @@ struct ZmanimView: View {
                         Text("זמני היום · \(city.name)")
                             .font(.system(size: 20, weight: .heavy))
                             .padding(.bottom, 6)
+                        let nextID: String? = isToday ? zmanim.next(after: now)?.id : nil
                         ForEach(zmanim.list) { zman in
-                            let isNext = isToday && zmanim.next(after: now)?.id == zman.id
+                            let isNext = nextID == zman.id
                             HStack {
                                 Image(systemName: zman.symbol)
                                     .font(.system(size: 15, weight: .semibold))
@@ -79,7 +80,7 @@ struct ZmanimView: View {
                                     .monospacedDigit()
                             }
                             .frame(height: 44)
-                            .opacity(isToday && zman.date < now ? 0.5 : 1)
+                            .opacity(nextID != nil && zman.date < now ? 0.5 : 1)
                             .accessibilityElement(children: .combine)
                             if zman.id != zmanim.list.last?.id {
                                 Divider().overlay(Color.white.opacity(0.18))
@@ -124,6 +125,7 @@ struct ZmanimView: View {
                 } label: {
                     Text(City.find(cityID).name)
                         .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
                 }
             }
         }

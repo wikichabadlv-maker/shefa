@@ -93,6 +93,29 @@ struct CountUp: View {
     }
 }
 
+/// A large shekel amount that counts up as its screen opens: heavy digits
+/// with a smaller shekel sign before them, always read left to right.
+struct BigMoney: View {
+    let value: Double
+    var size: CGFloat = 56
+    var duration: Double = 0.9
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: size * 0.05) {
+            Text(value < 0 ? "−₪" : "₪")
+                .font(.system(size: size * 0.5, weight: .bold))
+            CountUp(value: abs(value), duration: duration) { Money.digits(Decimal($0.rounded())) }
+                .font(.system(size: size, weight: .heavy))
+                .monospacedDigit()
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+        }
+        .environment(\.layoutDirection, .leftToRight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Money.text(Decimal(value.rounded())))
+    }
+}
+
 /// A rounded bar that fills up to its share as its screen opens.
 struct GrowBar<Fill: ShapeStyle>: View {
     let share: Double
@@ -167,6 +190,9 @@ struct SweepReveal: ViewModifier {
                         .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
                         .animation(.smooth(duration: 1.0).delay(delay), value: arrived)
                 }
+                // A turn is mirrored in a right-to-left layout; the sweep
+                // starts at the top either way.
+                .environment(\.layoutDirection, .leftToRight)
             }
     }
 }

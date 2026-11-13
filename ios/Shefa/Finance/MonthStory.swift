@@ -284,12 +284,17 @@ private struct StoryPage: View {
             LivingGradient(artwork: page.artwork, seed: 0.2)
             LinearGradient(colors: [.black.opacity(0), .black.opacity(0.3)],
                            startPoint: .center, endPoint: .bottom)
-            Image(systemName: page.symbol)
-                .font(.system(size: 290, weight: .bold))
-                .foregroundStyle(.white.opacity(0.1))
-                .rotationEffect(.degrees(-14))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .offset(x: -70, y: 50)
+            // An overlay, so that a wide symbol cannot make the page wider
+            // than the screen.
+            Color.clear
+                .overlay(alignment: .bottomLeading) {
+                    Image(systemName: page.symbol)
+                        .font(.system(size: 290, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.1))
+                        .rotationEffect(.degrees(-14))
+                        .fixedSize()
+                        .offset(x: -70, y: 50)
+                }
                 .environment(\.layoutDirection, .leftToRight)
                 .accessibilityHidden(true)
 
@@ -300,11 +305,7 @@ private struct StoryPage: View {
                     .opacity(0.92)
                     .cascade(0)
                 if let number = page.number {
-                    CountUp(value: number, duration: 1.3) { Money.text(Decimal($0.rounded())) }
-                        .font(.system(size: 76, weight: .heavy))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
+                    BigMoney(value: number, size: 80, duration: 1.3)
                         .cascade(2)
                 }
                 if !page.title.isEmpty {
