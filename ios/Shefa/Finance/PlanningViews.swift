@@ -183,13 +183,19 @@ struct BudgetHero: View {
                     .padding(.top, 2)
             }
             Spacer(minLength: 0)
-            ProgressRing(share: share, lineWidth: 10)
-                .frame(width: 92, height: 92)
-                .overlay {
-                    Text(share, format: .percent.precision(.fractionLength(0)))
-                        .font(.system(size: 19, weight: .heavy))
-                        .monospacedDigit()
-                }
+            if total > 0 {
+                ProgressRing(share: share, lineWidth: 10)
+                    .frame(width: 92, height: 92)
+                    .overlay {
+                        Text(share, format: .percent.precision(.fractionLength(0)))
+                            .font(.system(size: 19, weight: .heavy))
+                            .monospacedDigit()
+                    }
+            } else {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 34, weight: .bold))
+                    .opacity(0.85)
+            }
         }
         .foregroundStyle(.white)
         .padding(20)
@@ -280,6 +286,11 @@ struct SavingsList: View {
             }
             .sheet(item: $draft) { value in
                 GoalSheet(goal: nil, draft: value)
+            }
+            .task {
+                guard Launch.screen == "finance-goal" else { return }
+                try? await Task.sleep(for: .seconds(1))
+                editing = goals.first
             }
     }
 

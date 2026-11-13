@@ -78,6 +78,11 @@ struct OverviewView: View {
             }
         }
 
+        PaceCard(entries: entries, month: month, summary: summary)
+
+        FixedCard(entries: entries, month: month)
+            .id("fixed")
+
         card("חצי שנה במבט אחד") {
             Chart(history) { point in
                 BarMark(x: .value("חודש", point.label), y: .value("סכום", point.amount))

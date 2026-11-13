@@ -138,7 +138,10 @@ struct QuickAddSheet: View {
                         .disabled(!canSave)
                 }
             }
-            .onAppear { focus = kind.isMoney ? .amount : .text }
+            .task {
+                try? await Task.sleep(for: .seconds(0.6))
+                focus = kind.isMoney ? .amount : .text
+            }
             .onChange(of: kind) { _, value in focus = value.isMoney ? .amount : .text }
         }
         .environment(\.layoutDirection, .rightToLeft)

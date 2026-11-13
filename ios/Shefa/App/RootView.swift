@@ -44,6 +44,7 @@ struct RootView: View {
             ExcelImport.importIfNeeded(in: context)
             Ledger.removeExampleGoals(in: context)
             if Launch.demo { DemoData.fill(context) }
+            if Launch.screen == "quick" { router.isQuickAdding = true }
             await Backend.shared.sync(into: context)
         }
     }

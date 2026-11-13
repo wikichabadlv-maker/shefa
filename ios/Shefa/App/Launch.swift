@@ -21,7 +21,8 @@ enum Launch {
         switch screen {
         case "finance-overview": return .overview
         case "finance-budget": return .budget
-        case "finance-savings": return .savings
+        case "finance-savings", "finance-goal": return .savings
+        case "finance-entry": return .transactions
         default: return screen == "finance-transactions" ? .transactions : .overview
         }
     }
@@ -61,5 +62,5 @@ enum Launch {
 final class AppRouter {
     static let shared = AppRouter()
     var financeSection: FinanceSection = Launch.financeSection
-    var isQuickAdding = Launch.screen == "quick"
+    var isQuickAdding = false
 }

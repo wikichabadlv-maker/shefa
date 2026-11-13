@@ -18,6 +18,7 @@ struct FinanceView: View {
 
     @State private var month = Launch.month
     @State private var isAdding = false
+    @State private var showsCategory = Launch.screen == "finance-category"
 
     private var section: FinanceSection { router.financeSection }
 
@@ -110,6 +111,9 @@ struct FinanceView: View {
             .sheet(isPresented: $isAdding) {
                 QuickAddSheet(kind: .expense)
             }
+            .navigationDestination(isPresented: $showsCategory) {
+                CategoryDetailView(category: SpendCategory.all[0], entries: counted, month: month)
+            }
         }
     }
 }
@@ -201,6 +205,11 @@ struct TransactionsList: View {
         }
         .sheet(item: $editing) { entry in
             EntryDetailSheet(entry: entry)
+        }
+        .task {
+            guard Launch.screen == "finance-entry" else { return }
+            try? await Task.sleep(for: .seconds(1))
+            editing = entries.first
         }
     }
 

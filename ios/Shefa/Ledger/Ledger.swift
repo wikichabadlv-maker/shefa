@@ -51,6 +51,9 @@ struct LedgerDay: Identifiable {
     /// For example "היום · חמישי" or "8 בנובמבר · ראשון".
     var title: String {
         let calendar = Calendar.current
+        if entries.allSatisfy({ $0.source == ExcelImport.source }) {
+            return "סיכום החודש מקובץ התקציב"
+        }
         let weekday = id.formatted(Date.FormatStyle(locale: Ledger.hebrew).weekday(.wide))
             .replacingOccurrences(of: "יום ", with: "")
         if calendar.isDateInToday(id) { return "היום · \(weekday)" }

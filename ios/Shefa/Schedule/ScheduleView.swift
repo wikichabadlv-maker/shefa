@@ -43,9 +43,8 @@ struct ScheduleView: View {
                             }
                         }
                     } label: {
-                        Label(city.name, systemImage: "location.fill")
-                            .labelStyle(.titleAndIcon)
-                            .font(.system(size: 14, weight: .bold))
+                        Text(city.name)
+                            .font(.system(size: 15, weight: .bold))
                     }
                 }
             }
@@ -118,13 +117,16 @@ struct ScheduleView: View {
                     let isPast = isToday && row.endMinute <= minute && row.item != nil
                         || isToday && row.item == nil && row.minute < minute
                     let isNow = isToday && row.item != nil && row.minute <= minute && minute < row.endMinute
-                    Button {
-                        if let item = row.item { editing = item }
-                    } label: {
+                    if let item = row.item {
+                        Button {
+                            editing = item
+                        } label: {
+                            timelineRow(row, isPast: isPast, isNow: isNow)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
                         timelineRow(row, isPast: isPast, isNow: isNow)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(row.item == nil)
                     if row.id != list.last?.id {
                         Divider().padding(.leading, 112)
                     }
