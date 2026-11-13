@@ -317,8 +317,15 @@ struct HorizonView: View {
         if let note = event.note {
             parts.append(note)
         } else if let id = event.plannedID {
-            let isMonthly: Bool = plan.planned.first { $0.id == id }?.isMonthly ?? false
-            parts.append(isMonthly ? "קבעתם, כל חודש" : "קבעתם")
+            let item: PlannedItem? = plan.planned.first { $0.id == id }
+            if let item, item.isMonthly {
+                // A day that fell on a weekend was carried to Sunday; the
+                // day the family chose is said, so the move is understood.
+                let isMoved: Bool = calendar.component(.day, from: event.date) != item.day
+                parts.append(isMoved ? "קבעתם ל־\(item.day) בחודש, כל חודש" : "קבעתם, כל חודש")
+            } else {
+                parts.append("קבעתם")
+            }
         }
         let detail: String = parts.joined(separator: " · ")
         let shape = RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -708,16 +715,12 @@ struct PlannedSheet: View {
                 }
 
                 Section {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text("₪")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundStyle(.secondary)
-                        TextField("0", text: $amountText)
-                            .font(.system(size: 44, weight: .heavy))
-                            .keyboardType(.decimalPad)
-                            .focused($isAmountFocused)
-                    }
-                    .environment(\.layoutDirection, .leftToRight)
+                    amountCard
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+
+                Section {
                     TextField(isIncome ? "ממי? למשל החזר מס" : "על מה? למשל ועד בית", text: $title)
                 }
 
@@ -778,6 +781,41 @@ struct PlannedSheet: View {
         .presentationDetents([.large])
     }
 
+    /// The amount, on the color of its direction: blue for money that goes
+    /// out, green for money that comes in.
+    private var amountCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(isIncome ? "כמה צפוי להיכנס" : "כמה צפוי לרדת")
+                .font(.system(size: 14, weight: .bold))
+                .opacity(0.92)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("₪")
+                    .font(.system(size: 28, weight: .bold))
+                    .opacity(0.85)
+                TextField("", text: $amountText)
+                    .font(.system(size: 50, weight: .heavy))
+                    .keyboardType(.decimalPad)
+                    .focused($isAmountFocused)
+                    .tint(.white)
+                    .overlay(alignment: .leading) {
+                        if amountText.isEmpty {
+                            Text("0")
+                                .font(.system(size: 50, weight: .heavy))
+                                .opacity(0.4)
+                                .allowsHitTesting(false)
+                        }
+                    }
+            }
+            .environment(\.layoutDirection, .leftToRight)
+        }
+        .foregroundStyle(.white)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .livingCard(isIncome ? Theme.green : HorizonView.artwork, radius: 24, seed: 0.3,
+                    watermark: isIncome ? "banknote.fill" : "calendar", isMoving: false)
+        .animation(.smooth(duration: 0.3), value: isIncome)
+    }
+
     private func save() {
         guard let amount else { return }
         let calendar = Calendar.current
@@ -816,10 +854,19 @@ struct BalanceSheet: View {
                         Text(isBelowZero ? "−₪" : "₪")
                             .font(.system(size: 26, weight: .bold))
                             .foregroundStyle(.secondary)
-                        TextField("0", text: $amountText)
+                        TextField("", text: $amountText)
                             .font(.system(size: 44, weight: .heavy))
                             .keyboardType(.decimalPad)
                             .focused($isFocused)
+                            .overlay(alignment: .leading) {
+                                // The hint stands where the digits will.
+                                if amountText.isEmpty {
+                                    Text("0")
+                                        .font(.system(size: 44, weight: .heavy))
+                                        .foregroundStyle(.tertiary)
+                                        .allowsHitTesting(false)
+                                }
+                            }
                     }
                     .environment(\.layoutDirection, .leftToRight)
                     Toggle("החשבון במינוס", isOn: $isBelowZero)

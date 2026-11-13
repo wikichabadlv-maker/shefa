@@ -115,6 +115,11 @@ struct SalaryView: View {
             // A home that has not set one yet starts from the careful figure.
             if draft <= 0, let careful = Ledger.suggestedSalary(entries) { draft = careful }
         }
+        .onChange(of: plan.salary) { _, value in
+            // A salary that arrives from elsewhere, such as a restored
+            // backup, is the one on the screen.
+            if value > 0 { draft = value }
+        }
         .alert("משכורת הבית", isPresented: $isTyping) {
             TextField("סכום לחודש", text: $typed)
                 .keyboardType(.numberPad)
@@ -284,10 +289,9 @@ struct SalaryView: View {
     }
 
     private func chartCard(_ past: [(month: Date, income: Decimal)], incomes: [Decimal]) -> some View {
-        let calendar = Calendar.current
         var months: [Month] = []
         for (index, item) in past.reversed().enumerated() {
-            months.append(Month(id: index, label: "\(calendar.component(.month, from: item.month))",
+            months.append(Month(id: index, label: Ledger.monthName(item.month, short: true),
                                 income: item.income.double))
         }
         let bars: [Month] = months

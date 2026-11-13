@@ -105,6 +105,17 @@ enum Forecast {
         return calendar.date(byAdding: .day, value: min(max(day, 1), count) - 1, to: month) ?? month
     }
 
+    /// The banks move no money on Friday and on Shabbat, so what falls on
+    /// them is expected on the Sunday after.
+    static func bankDay(_ date: Date) -> Date {
+        let calendar = Calendar.current
+        // Sunday is 1, Friday 6 and Shabbat 7.
+        let weekday: Int = calendar.component(.weekday, from: date)
+        let wait: Int = weekday == 6 ? 2 : (weekday == 7 ? 1 : 0)
+        guard wait > 0 else { return date }
+        return calendar.date(byAdding: .day, value: wait, to: date) ?? date
+    }
+
     /// For example "2026-11".
     static func monthKey(_ date: Date) -> String {
         String(DayKey.of(date).prefix(7))
@@ -273,8 +284,8 @@ enum Forecast {
             }
             for (month, cycle) in months {
                 let usual = cycle.days.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key > $1.key }.first
-                let date: Date = usual?.key
-                    ?? day(billing[source] ?? 10, inMonthOf: DayKey.date(month + "-01") ?? now)
+                let date: Date = bankDay(usual?.key
+                    ?? day(billing[source] ?? 10, inMonthOf: DayKey.date(month + "-01") ?? now))
                 guard date > start, date <= end else { continue }
                 let known: Decimal = -(cycle.sum + cycle.extra)
                 // A bill whose day is still ahead can grow with new purchases.
@@ -375,10 +386,10 @@ enum Forecast {
         guard let lateLimit = calendar.date(byAdding: .day, value: -7, to: start) else { return [] }
         var result: [Date] = []
         for shift in 1...4 {
-            var date: Date = day(pattern.day, inMonthOf: pattern.last, shift: shift)
+            var date: Date = bankDay(day(pattern.day, inMonthOf: pattern.last, shift: shift))
             if date <= start {
                 guard date >= lateLimit else { continue }
-                date = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+                date = bankDay(calendar.date(byAdding: .day, value: 1, to: start) ?? start)
             }
             if date > end { break }
             result.append(date)
@@ -430,8 +441,10 @@ enum Forecast {
         for item in plan.planned {
             var dates: [Date] = []
             if item.isMonthly {
-                for shift in 0...3 {
-                    dates.append(day(item.day, inMonthOf: from, shift: shift))
+                // The month before is looked at too: its last days can be
+                // carried over a weekend into this one.
+                for shift in -1...3 {
+                    dates.append(bankDay(day(item.day, inMonthOf: from, shift: shift)))
                 }
             } else if let date = item.date {
                 dates.append(calendar.startOfDay(for: date))

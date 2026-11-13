@@ -93,10 +93,19 @@ struct QuickAddSheet: View {
                             Text("₪")
                                 .font(.system(size: 26, weight: .bold))
                                 .foregroundStyle(.secondary)
-                            TextField("0", text: $amountText)
+                            TextField("", text: $amountText)
                                 .font(.system(size: 44, weight: .heavy))
                                 .keyboardType(.decimalPad)
                                 .focused($focus, equals: .amount)
+                                .overlay(alignment: .leading) {
+                                    // The hint stands where the digits will.
+                                    if amountText.isEmpty {
+                                        Text("0")
+                                            .font(.system(size: 44, weight: .heavy))
+                                            .foregroundStyle(.tertiary)
+                                            .allowsHitTesting(false)
+                                    }
+                                }
                         }
                         .environment(\.layoutDirection, .leftToRight)
                         TextField(kind.prompt, text: $text)
@@ -248,7 +257,7 @@ struct EntryDetailSheet: View {
         guard isFromFeed, Forecast.isCardLine(entry), entry.amount < 0 else { return nil }
         let cards: [LedgerEntry] = all.filter { Forecast.isCardLine($0) }
         let day: Int = Forecast.billingDays(cards)[entry.source] ?? 10
-        let charge: Date = Forecast.chargeDay(of: entry, billingDay: day)
+        let charge: Date = Forecast.bankDay(Forecast.chargeDay(of: entry, billingDay: day))
         let isAhead: Bool = charge > Calendar.current.startOfDay(for: .now)
         return (isAhead ? "יורד מהבנק" : "ירד מהבנק", "ב־" + Ledger.dayText(charge))
     }
