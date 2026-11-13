@@ -77,17 +77,22 @@ struct FinanceView: View {
                         monthBar
                     }
 
-                    switch section {
-                    case .overview:
-                        OverviewView(entries: counted, month: month, summary: summary)
-                    case .transactions:
-                        TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
-                    case .budget:
-                        BudgetList(entries: counted, month: month)
-                    case .savings:
-                        SavingsList(month: Ledger.summary(counted), entries: counted)
+                    Group {
+                        switch section {
+                        case .overview:
+                            OverviewView(entries: counted, month: month, summary: summary)
+                        case .transactions:
+                            TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
+                        case .budget:
+                            BudgetList(entries: counted, month: month)
+                        case .savings:
+                            SavingsList(month: Ledger.summary(counted), entries: counted)
+                        }
                     }
+                    .id(section)
+                    .transition(.sectionSwap)
                 }
+                .animation(.section, value: section)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
@@ -193,7 +198,7 @@ struct TransactionsList: View {
                             TransactionRow(entry: item)
                                 .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                         if item.id != day.entries.last?.id {
                             Divider().padding(.leading, 54)
                         }
@@ -236,7 +241,7 @@ struct TransactionsList: View {
             .foregroundStyle(isOn ? Theme.ground : (isQuestions ? Theme.amberInk : Color.primary))
             .background(isOn ? Color.primary : (isQuestions ? Theme.amberGround : Theme.chip), in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

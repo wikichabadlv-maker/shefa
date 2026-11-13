@@ -166,7 +166,7 @@ struct QuickAddSheet: View {
             .background(isOn ? AnyShapeStyle(category.artwork.gradient) : AnyShapeStyle(Theme.chip),
                         in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 

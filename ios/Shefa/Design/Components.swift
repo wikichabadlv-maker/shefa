@@ -39,7 +39,7 @@ struct SectionHeader: View {
                 Spacer()
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(action == nil)
         .padding(.horizontal, 4)
     }
@@ -86,7 +86,7 @@ struct NowTaskBar: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityHint("פתיחת מסך מלא")
                 Button {
                     AppRouter.shared.isQuickAdding = true

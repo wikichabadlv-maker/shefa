@@ -188,7 +188,7 @@ struct ZmanimCard: View {
                 .padding(14)
                 .cardSurface()
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
     }
 }

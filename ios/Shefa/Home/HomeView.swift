@@ -11,6 +11,9 @@ struct HomeView: View {
     @Query(filter: #Predicate<ListItem> { !$0.removed && !$0.isDone && $0.kind == "task" },
            sort: \ListItem.createdAt, order: .reverse)
     private var tasks: [ListItem]
+    @Query(filter: #Predicate<ListItem> { !$0.removed && !$0.isDone && $0.kind == "shopping" },
+           sort: \ListItem.createdAt, order: .reverse)
+    private var shopping: [ListItem]
 
     @State private var backend = Backend.shared
     @State private var router = AppRouter.shared
@@ -50,7 +53,7 @@ struct HomeView: View {
                     } label: {
                         MonthHeroCard(month: month)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
 
                     if let question {
                         QuestionCard(entry: question)
@@ -67,6 +70,11 @@ struct HomeView: View {
 
                     if !tasks.isEmpty {
                         tasksPreview
+                    }
+
+                    ShoppingCard(open: shopping) {
+                        router.tasksSection = .shopping
+                        selection = .tasks
                     }
 
                     goalsSection
@@ -121,7 +129,7 @@ struct HomeView: View {
             .padding(14)
             .cardSurface()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func syncProblem(_ problem: String) -> some View {
@@ -161,7 +169,10 @@ struct HomeView: View {
 
     private var tasksPreview: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "המטלות של היום") { selection = .tasks }
+            SectionHeader(title: "המטלות של היום") {
+                router.tasksSection = .tasks
+                selection = .tasks
+            }
             VStack(spacing: 0) {
                 ForEach(todayTasks.prefix(3)) { item in
                     Button {
@@ -181,7 +192,7 @@ struct HomeView: View {
                         .frame(height: 50)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .accessibilityHint("סימון כבוצע")
                     if item.id != todayTasks.prefix(3).last?.id {
                         Divider().padding(.leading, 34)
@@ -229,7 +240,7 @@ struct HomeView: View {
                     .padding(14)
                     .cardSurface()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             } else {
                 ScrollView(.horizontal) {
                     HStack(spacing: 12) {
@@ -240,7 +251,7 @@ struct HomeView: View {
                             } label: {
                                 GoalTile(goal: goal)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -264,7 +275,7 @@ struct HomeView: View {
                     } label: {
                         TransactionRow(entry: item).contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     if item.id != recent.last?.id {
                         Divider().padding(.leading, 54)
                     }
@@ -416,7 +427,7 @@ struct QuestionCard: View {
                 .background(Theme.amberGround, in: Capsule())
                 .foregroundStyle(Theme.amberInk)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 

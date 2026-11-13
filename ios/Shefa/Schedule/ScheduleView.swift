@@ -123,7 +123,7 @@ struct ScheduleView: View {
                 .opacity(isDone || (isPast && !isNow) ? 0.5 : 1)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             Button {
                 withAnimation(.spring(duration: 0.35, bounce: 0.4)) { item.setDone(!isDone, on: day) }
@@ -143,7 +143,7 @@ struct ScheduleView: View {
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 44, height: 44)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .accessibilityLabel(isDone ? "ביטול הסימון" : "סימון כבוצע")
         }
         .frame(minHeight: 58)
@@ -178,7 +178,7 @@ struct ScheduleView: View {
                                 .frame(height: 38)
                                 .background(Theme.chip, in: Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
             }
@@ -277,7 +277,7 @@ struct DayStrip: View {
                     .background(isOn ? AnyShapeStyle(Theme.emerald.gradient) : AnyShapeStyle(Theme.card),
                                 in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
@@ -487,7 +487,7 @@ struct ScheduleEditor: View {
                                     .foregroundStyle(isOn ? Color.white : Color.primary)
                                     .background(isOn ? Theme.accent : Theme.chip, in: Circle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                             .accessibilityAddTraits(isOn ? .isSelected : [])
                         }
                     }
@@ -572,7 +572,7 @@ struct SymbolGrid: View {
                         .background(selection == item ? Theme.accent : Theme.chip,
                                     in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityAddTraits(selection == item ? .isSelected : [])
             }
         }
@@ -600,7 +600,7 @@ struct PaletteRow: View {
                             }
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityLabel("צבע \(index + 1)")
                 .accessibilityAddTraits(selection == index ? .isSelected : [])
             }

@@ -19,6 +19,7 @@ private struct AppArea: Identifiable {
 struct MoreView: View {
     @State private var query = ""
     @State private var path: [String] = Launch.morePath
+    @Namespace private var zoom
     @State private var viewing: LedgerEntry?
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<ListItem> { !$0.removed }, sort: \ListItem.createdAt, order: .reverse)
@@ -93,8 +94,7 @@ struct MoreView: View {
     private func destination(_ id: String) -> some View {
         switch AreaKind(rawValue: id) {
         case .shopping:
-            CheckListView(kind: ListItem.shopping, title: "רשימת קניות", placeholder: "מה צריך לקנות?",
-                          emptyText: "הרשימה ריקה. הוסיפו מוצר ראשון.")
+            ShoppingScreen()
         case .notes:
             NotesView(kind: ListItem.note, title: "לזכור", placeholder: "מה חשוב לזכור?",
                       emptyTitle: "עוד אין פתקים", emptyText: "קוד לדלת, מידה, רעיון למתנה. כל מה שלא רוצים לשכוח.",
@@ -145,8 +145,9 @@ struct MoreView: View {
                         ForEach(areas) { area in
                             NavigationLink(value: area.id) {
                                 tile(area)
+                                    .matchedTransitionSource(id: area.id, in: zoom)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         }
                     }
                     .padding(16)
@@ -159,6 +160,7 @@ struct MoreView: View {
             .navigationTitle("עוד")
             .navigationDestination(for: String.self) { id in
                 destination(id)
+                    .navigationTransition(.zoom(sourceID: id, in: zoom))
             }
             .searchable(text: $query, prompt: "חיפוש בכל האפליקציה")
             .sheet(item: $viewing) { entry in
@@ -211,7 +213,7 @@ struct MoreView: View {
                             } label: {
                                 TransactionRow(entry: item).contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                             if item.id != foundEntries.last?.id {
                                 Divider().padding(.leading, 54)
                             }

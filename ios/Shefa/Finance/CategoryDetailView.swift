@@ -136,7 +136,7 @@ struct CategoryDetailView: View {
                                 } label: {
                                     TransactionRow(entry: item).contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
                                 if item.id != lines.last?.id {
                                     Divider().padding(.leading, 54)
                                 }

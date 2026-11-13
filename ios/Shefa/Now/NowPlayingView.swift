@@ -227,7 +227,7 @@ struct NowPlayingView: View {
             .disabled(index == nil || (index ?? 0) >= list.count - 1)
             .accessibilityLabel("הבא")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .environment(\.layoutDirection, .leftToRight)
     }
 
@@ -265,7 +265,7 @@ struct NowPlayingView: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(.white.opacity(0.18), in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 
     private func queue(list: [ScheduleItem], index: Int?, minute: Int) -> some View {
@@ -300,7 +300,7 @@ struct NowPlayingView: View {
                         }
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
 
@@ -325,7 +325,7 @@ struct NowPlayingView: View {
                         }
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .accessibilityHint("סימון כבוצע")
                 }
             }

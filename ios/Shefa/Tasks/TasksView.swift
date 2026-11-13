@@ -52,6 +52,7 @@ struct TasksView: View {
            sort: \ListItem.createdAt, order: .reverse)
     private var items: [ListItem]
 
+    @State private var router = AppRouter.shared
     @State private var draft = ""
     @State private var draftDay = 0
     @State private var draftImportant = false
@@ -93,32 +94,50 @@ struct TasksView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    TasksHero(doneToday: doneToday.count, openToday: today.count,
-                              minutesLeft: today.reduce(0) { $0 + $1.minutes })
-                    addBar
-
-                    if open.isEmpty && doneToday.isEmpty {
-                        emptyState
+                    Picker("מדור", selection: $router.tasksSection) {
+                        ForEach(TasksSection.allCases) { item in
+                            Text(item.rawValue).tag(item)
+                        }
                     }
+                    .pickerStyle(.segmented)
 
-                    if !today.isEmpty || !doneToday.isEmpty {
-                        section("היום", today, hint: today.count > 5
-                                ? "הרבה ליום אחד. מה שלושת הדברים שבאמת חייבים לקרות היום?" : nil)
-                    } else if !open.isEmpty {
-                        pickHint
-                    }
-                    if !later.isEmpty { section("בקרוב", later) }
-                    if !someday.isEmpty { section("מתישהו", someday) }
+                    Group {
+                        if router.tasksSection == .shopping {
+                            ShoppingBoard()
+                        } else {
+                            VStack(alignment: .leading, spacing: 18) {
+                            TasksHero(doneToday: doneToday.count, openToday: today.count,
+                                      minutesLeft: today.reduce(0) { $0 + $1.minutes })
+                            addBar
 
-                    if !doneToday.isEmpty || !doneEarlier.isEmpty {
-                        doneSection
+                            if open.isEmpty && doneToday.isEmpty {
+                                emptyState
+                            }
+
+                            if !today.isEmpty || !doneToday.isEmpty {
+                                section("היום", today, hint: today.count > 5
+                                        ? "הרבה ליום אחד. מה שלושת הדברים שבאמת חייבים לקרות היום?" : nil)
+                            } else if !open.isEmpty {
+                                pickHint
+                            }
+                            if !later.isEmpty { section("בקרוב", later) }
+                            if !someday.isEmpty { section("מתישהו", someday) }
+
+                            if !doneToday.isEmpty || !doneEarlier.isEmpty {
+                                doneSection
+                            }
+                            }
+                        }
                     }
+                    .id(router.tasksSection)
+                    .transition(.sectionSwap)
                 }
+                .animation(.section, value: router.tasksSection)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
             .background(Theme.ground)
-            .navigationTitle("מטלות")
+            .navigationTitle(router.tasksSection == .shopping ? "קניות" : "מטלות")
             .refreshable { await SharedSync.shared.run(in: context) }
             .overlay {
                 if celebrates { ConfettiView().allowsHitTesting(false).ignoresSafeArea() }
@@ -163,7 +182,7 @@ struct TasksView: View {
                             .foregroundStyle(draftImportant ? Color.white : Color.primary)
                             .background(draftImportant ? Color(hex: 0xEA580C) : Theme.chip, in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                     .accessibilityLabel("חשוב")
                     .accessibilityAddTraits(draftImportant ? .isSelected : [])
                 }
@@ -186,7 +205,7 @@ struct TasksView: View {
                 .foregroundStyle(isOn ? Theme.ground : Color.primary)
                 .background(isOn ? Color.primary : Theme.chip, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
@@ -303,7 +322,7 @@ struct TasksView: View {
                 .padding(.horizontal, 4)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             if showsDone {
                 let list = doneToday + doneEarlier
@@ -451,7 +470,7 @@ struct TaskRow: View {
                     .frame(width: 42, height: 48)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .accessibilityLabel(item.isDone ? "החזרה לפתוחות" : "סימון כבוצע")
 
             Button(action: onOpen) {
@@ -468,7 +487,7 @@ struct TaskRow: View {
                 .padding(.vertical, 8)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
 
             if let onToday, !item.isDone, !item.isForToday {
                 Button(action: onToday) {
@@ -478,7 +497,7 @@ struct TaskRow: View {
                         .frame(width: 40, height: 40)
                         .background(Theme.amberGround, in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityLabel("להיום")
             }
         }

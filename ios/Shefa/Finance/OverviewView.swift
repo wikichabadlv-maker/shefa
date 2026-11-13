@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The finance dashboard: the month as pictures, with the story on top.
 struct OverviewView: View {
+    @Namespace private var zoom
     let entries: [LedgerEntry]
     let month: Date
     let summary: MonthSummary
@@ -69,11 +70,13 @@ struct OverviewView: View {
                 ForEach(slices) { slice in
                     NavigationLink {
                         CategoryDetailView(category: slice.category, entries: entries, month: month)
+                            .navigationTransition(.zoom(sourceID: slice.category.id, in: zoom))
                     } label: {
                         CategoryTile(category: slice.category, amount: slice.amount,
                                      share: slice.amount / max(slices.reduce(0) { $0 + $1.amount }, 1))
+                            .matchedTransitionSource(id: slice.category.id, in: zoom)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
         }
@@ -244,7 +247,7 @@ struct InsightCarousel: View {
                             } label: {
                                 tile(insight)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pressable)
                         } else {
                             tile(insight)
                         }
@@ -385,7 +388,7 @@ struct YearMap: View {
                         }
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityLabel("\(row.category.title), \(Money.text(Decimal(row.total))) השנה")
             }
             Text("ככל שהמשבצת כהה יותר, הוצאתם יותר באותו חודש. לחיצה על שורה פותחת את הקבוצה.")

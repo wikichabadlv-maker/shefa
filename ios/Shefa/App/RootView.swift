@@ -17,18 +17,23 @@ struct RootView: View {
         TabView(selection: $selection) {
             Tab("בית", systemImage: "house.fill", value: AppTab.home) {
                 HomeView(selection: $selection)
+                    .tabEntrance(selection == .home)
             }
             Tab("לו״ז", systemImage: "clock.fill", value: AppTab.schedule) {
                 ScheduleView()
+                    .tabEntrance(selection == .schedule)
             }
             Tab("פיננסים", systemImage: "creditcard.fill", value: AppTab.finance) {
                 FinanceView()
+                    .tabEntrance(selection == .finance)
             }
             Tab("מטלות", systemImage: "checklist", value: AppTab.tasks) {
                 TasksView()
+                    .tabEntrance(selection == .tasks)
             }
             Tab(value: AppTab.more, role: .search) {
                 MoreView()
+                    .tabEntrance(selection == .more)
             }
         }
         .tabBarMinimizeBehavior(.onScrollDown)

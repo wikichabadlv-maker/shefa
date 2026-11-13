@@ -185,7 +185,7 @@ struct HabitsCard: View {
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .accessibilityLabel(habit.title)
         .accessibilityAddTraits(isDone ? .isSelected : [])
     }
@@ -236,7 +236,7 @@ struct HabitsSheet: View {
                                             .background(isDone ? AnyShapeStyle(habit.artwork.gradient) : AnyShapeStyle(Theme.chip),
                                                         in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
                                 }
                             }
                         }

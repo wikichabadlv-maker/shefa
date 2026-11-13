@@ -48,7 +48,7 @@ struct BudgetList: View {
                     row(category, spent: spent[category.id] ?? 0, limit: limit(category))
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 if category.id != categories.last?.id {
                     Divider().padding(.leading, 54)
                 }
@@ -268,7 +268,7 @@ struct SavingsList: View {
             } label: {
                 GoalCard(goal: goal)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
 
         if !hasEmergency && emergencyTarget > 0 {
@@ -340,7 +340,7 @@ struct SavingsList: View {
                     .background(Theme.accent, in: Capsule())
                     .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -373,7 +373,7 @@ struct SavingsList: View {
                                 .frame(height: 38)
                                 .background(Theme.chip, in: Capsule())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
             }
@@ -586,7 +586,7 @@ struct GoalSheet: View {
                 .foregroundStyle(sign > 0 ? Color.white : Color.primary)
                 .background(sign > 0 ? Theme.accent : Theme.chip, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
         .disabled(Ledger.amount(from: moveText) == nil)
     }
 

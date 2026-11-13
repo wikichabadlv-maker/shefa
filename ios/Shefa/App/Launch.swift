@@ -12,7 +12,7 @@ enum Launch {
         case "schedule": return .schedule
         case "tasks": return .tasks
         case "notes", "achievements", "settings", "zmanim": return .more
-        case "task": return .tasks
+        case "task", "shopping": return .tasks
         case "more": return .more
         default: return .home
         }
@@ -64,6 +64,7 @@ enum Launch {
 final class AppRouter {
     static let shared = AppRouter()
     var financeSection: FinanceSection = Launch.financeSection
+    var tasksSection: TasksSection = Launch.screen == "shopping" ? .shopping : .tasks
     var isQuickAdding = false
     var isNowPlaying = false
 }
