@@ -51,7 +51,9 @@ struct ScheduleView: View {
         let sky: Sky = isToday ? Sky.now(now) : Sky.midday
         // On a day that ends in candle lighting, the hours before them lead.
         let showsErev: Bool = isToday && JewishDay.of(now).isEve
-        let name: String? = showsErev ? nil : JewishDay.of(day).title
+        // Today's name follows the hour, as the date under it does: once
+        // a day of rest is out the card no longer carries its name.
+        let name: String? = showsErev ? nil : (isToday ? JewishDay.moment(now).name : JewishDay.of(day).title)
         return ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {

@@ -72,11 +72,13 @@ jobs:
             sudo date -f "%Y-%m-%dT%H:%M" "$1" >/dev/null || true
             date
             # The status bar shows the same hour, on a twelve-hour clock as
-            # the simulator itself shows it: an hour that begins with 19 or
-            # 20 is taken for a year and refused.
+            # the simulator itself shows it. A round hour is refused as a
+            # broken date, so the minute after it is shown instead.
             hm="${1#*T}"
             hour=$((10#${hm%%:*}))
-            shown="$(( (hour + 11) % 12 + 1 )):${hm##*:}"
+            minute="${hm##*:}"
+            if [ "$minute" = "00" ]; then minute="01"; fi
+            shown="$(( (hour + 11) % 12 + 1 )):$minute"
             if [ -n "$device" ]; then
               xcrun simctl status_bar "$device" override --time "$shown" --batteryState charged --batteryLevel 100 || true
             fi
