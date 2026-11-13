@@ -10,6 +10,8 @@ final class ListItem {
     var isDone: Bool
     var createdAt: Date
     var doneAt: Date?
+    var updatedAt: Date = Date.now
+    var removed: Bool = false
 
     init(kind: String, title: String) {
         self.id = UUID().uuidString
@@ -41,7 +43,7 @@ struct CheckListView: View {
         self.title = title
         self.placeholder = placeholder
         self.emptyText = emptyText
-        _items = Query(filter: #Predicate<ListItem> { $0.kind == kind },
+        _items = Query(filter: #Predicate<ListItem> { $0.kind == kind && !$0.removed },
                        sort: \ListItem.createdAt, order: .reverse)
     }
 
@@ -80,8 +82,11 @@ struct CheckListView: View {
                     }
                     .onDelete { offsets in remove(done, at: offsets) }
                     Button("ניקוי כל מה שהושלם", role: .destructive) {
-                        for item in done { context.delete(item) }
-                        try? context.save()
+                        for item in done {
+                            item.removed = true
+                            item.updatedAt = .now
+                        }
+                        saveAndShare()
                     }
                 }
             }
@@ -89,6 +94,7 @@ struct CheckListView: View {
         .scrollContentBackground(.hidden)
         .background(Theme.ground)
         .navigationTitle(title)
+        .refreshable { await SharedSync.shared.run(in: context) }
         .animation(.snappy, value: items.map(\.isDone))
     }
 
@@ -96,7 +102,8 @@ struct CheckListView: View {
         Button {
             item.isDone.toggle()
             item.doneAt = item.isDone ? .now : nil
-            try? context.save()
+            item.updatedAt = .now
+            saveAndShare()
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
@@ -118,15 +125,21 @@ struct CheckListView: View {
         let text = draft.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         context.insert(ListItem(kind: kind, title: text))
-        try? context.save()
+        saveAndShare()
         draft = ""
         isTyping = true
     }
 
     private func remove(_ list: [ListItem], at offsets: IndexSet) {
         for index in offsets where list.indices.contains(index) {
-            context.delete(list[index])
+            list[index].removed = true
+            list[index].updatedAt = .now
         }
+        saveAndShare()
+    }
+
+    private func saveAndShare() {
         try? context.save()
+        SharedSync.shared.changed(in: context)
     }
 }

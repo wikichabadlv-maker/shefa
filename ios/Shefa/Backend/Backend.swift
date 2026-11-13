@@ -78,7 +78,7 @@ final class Backend {
         SessionKeychain.save(new)
     }
 
-    private func validToken() async throws -> String {
+    func validToken() async throws -> String {
         guard let current = session else { throw BackendError(message: "לא מחוברים לחשבון") }
         if current.expiresAt > Date.now.addingTimeInterval(60) {
             return current.accessToken
@@ -125,6 +125,7 @@ final class Backend {
             try merge(rows: rows, details: details, into: context)
             lastSync = .now
             lastError = nil
+            await SharedSync.shared.run(in: context)
         } catch {
             lastError = error.localizedDescription
         }
@@ -215,7 +216,7 @@ final class Backend {
 
     // MARK: Network
 
-    private func send(_ path: String, method: String = "GET", query: [URLQueryItem] = [],
+    func send(_ path: String, method: String = "GET", query: [URLQueryItem] = [],
                       body: Data? = nil, token: String? = nil,
                       headers: [String: String] = [:]) async throws -> Data {
         guard var components = URLComponents(

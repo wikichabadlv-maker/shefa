@@ -8,7 +8,8 @@ struct HomeView: View {
 
     @Query private var budgetLines: [BudgetLine]
     @State private var backend = Backend.shared
-    @Query(sort: \SavingsGoal.createdAt) private var goals: [SavingsGoal]
+    @Query(filter: #Predicate<SavingsGoal> { !$0.removed }, sort: \SavingsGoal.createdAt)
+    private var goals: [SavingsGoal]
 
     private var month: MonthSummary { Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines)) }
     private var question: LedgerEntry? { entries.first { $0.needsAnswer } }

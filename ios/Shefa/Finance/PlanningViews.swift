@@ -87,10 +87,12 @@ struct BudgetList: View {
         let value = Ledger.amount(from: amountText) ?? 0
         if let line = lines.first(where: { $0.categoryID == category.id }) {
             line.limit = value
+            line.updatedAt = .now
         } else {
             context.insert(BudgetLine(categoryID: category.id, limit: value))
         }
         try? context.save()
+        SharedSync.shared.changed(in: context)
         editing = nil
     }
 
@@ -126,7 +128,8 @@ struct BudgetList: View {
 struct SavingsList: View {
     let month: MonthSummary
     @Environment(\.modelContext) private var context
-    @Query(sort: \SavingsGoal.createdAt) private var goals: [SavingsGoal]
+    @Query(filter: #Predicate<SavingsGoal> { !$0.removed }, sort: \SavingsGoal.createdAt)
+    private var goals: [SavingsGoal]
     @State private var isAdding = false
     @State private var depositing: SavingsGoal?
     @State private var amountText = ""
@@ -158,8 +161,10 @@ struct SavingsList: View {
                     .buttonStyle(.plain)
                     .contextMenu {
                         Button("מחיקת היעד", systemImage: "trash", role: .destructive) {
-                            context.delete(goal)
+                            goal.removed = true
+                            goal.updatedAt = .now
                             try? context.save()
+                            SharedSync.shared.changed(in: context)
                         }
                     }
                     if goal.id != goals.last?.id {
@@ -193,7 +198,9 @@ struct SavingsList: View {
     private func deposit() {
         guard let goal = depositing, let value = Ledger.amount(from: amountText) else { return }
         goal.saved += value
+        goal.updatedAt = .now
         try? context.save()
+        SharedSync.shared.changed(in: context)
         depositing = nil
     }
 
@@ -276,6 +283,7 @@ struct GoalEditor: View {
                             title: title.trimmingCharacters(in: .whitespaces),
                             target: target, symbol: symbol, palette: nextPalette))
                         try? context.save()
+                        SharedSync.shared.changed(in: context)
                         dismiss()
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || target == nil)

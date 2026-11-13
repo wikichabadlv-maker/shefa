@@ -6,10 +6,12 @@ import SwiftData
 final class BudgetLine {
     @Attribute(.unique) var categoryID: String
     var limit: Decimal
+    var updatedAt: Date = Date.now
 
-    init(categoryID: String, limit: Decimal) {
+    init(categoryID: String, limit: Decimal, updatedAt: Date = .now) {
         self.categoryID = categoryID
         self.limit = limit
+        self.updatedAt = updatedAt
     }
 }
 
@@ -23,6 +25,8 @@ final class SavingsGoal {
     var symbol: String
     var palette: Int
     var createdAt: Date
+    var updatedAt: Date = Date.now
+    var removed: Bool = false
 
     init(id: String = UUID().uuidString, title: String, saved: Decimal = 0, target: Decimal,
          symbol: String = "star.fill", palette: Int = 0, createdAt: Date = .now) {
@@ -83,17 +87,24 @@ extension Ledger {
                 ("maaser", 0), ("other", 1_300),
             ]
             for (id, limit) in limits where limit > 0 {
-                context.insert(BudgetLine(categoryID: id, limit: limit))
+                context.insert(BudgetLine(categoryID: id, limit: limit, updatedAt: SharedSync.untouched))
             }
         }
         if ((try? context.fetchCount(FetchDescriptor<SavingsGoal>())) ?? 0) == 0 {
             let now = Date.now
-            context.insert(SavingsGoal(title: "דירה משלנו", saved: 48_000, target: 200_000,
-                                       symbol: "house.fill", palette: 0, createdAt: now.addingTimeInterval(-3)))
-            context.insert(SavingsGoal(title: "בר מצווה", saved: 12_300, target: 30_000,
-                                       symbol: "star.fill", palette: 1, createdAt: now.addingTimeInterval(-2)))
-            context.insert(SavingsGoal(title: "חופשת קיץ", saved: 3_100, target: 8_000,
-                                       symbol: "sun.max.fill", palette: 2, createdAt: now.addingTimeInterval(-1)))
+            let examples: [(String, Decimal, Decimal, String)] = [
+                ("דירה משלנו", 48_000, 200_000, "house.fill"),
+                ("בר מצווה", 12_300, 30_000, "star.fill"),
+                ("חופשת קיץ", 3_100, 8_000, "sun.max.fill"),
+            ]
+            for (index, example) in examples.enumerated() {
+                let goal = SavingsGoal(
+                    id: "example-goal-\(index)", title: example.0, saved: example.1, target: example.2,
+                    symbol: example.3, palette: index,
+                    createdAt: now.addingTimeInterval(Double(index - examples.count)))
+                goal.updatedAt = SharedSync.untouched
+                context.insert(goal)
+            }
         }
         try? context.save()
     }
