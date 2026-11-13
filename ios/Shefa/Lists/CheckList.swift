@@ -64,7 +64,8 @@ final class ListItem {
         return due < Calendar.current.startOfDay(for: .now)
     }
 
-    /// For example "היום", "מחר", "באיחור של יומיים" or "יום שלישי".
+    /// For example "היום", "מחר", "מלפני יומיים" or "יום שלישי". A day that
+    /// has passed is named as it is, with no word of blame.
     var dueText: String? {
         guard let due else { return nil }
         let calendar = Calendar.current
@@ -74,7 +75,8 @@ final class ListItem {
         case 0: return "היום"
         case 1: return "מחר"
         case -1: return "מאתמול"
-        case ..<(-1): return "באיחור של \(-days) ימים"
+        case -2: return "מלפני יומיים"
+        case ..<(-2): return "מלפני \(-days) ימים"
         case 2...6: return HebrewDate.weekday(due)
         default: return due.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.abbreviated))
         }

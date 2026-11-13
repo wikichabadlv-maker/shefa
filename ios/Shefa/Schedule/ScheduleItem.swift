@@ -26,6 +26,9 @@ final class ScheduleItem {
     var anchor: String = ""
     /// Minutes after the anchor; negative for before it.
     var anchorOffset: Int = 0
+    /// Time that is the family's own to fill, such as working hours: the
+    /// day's tasks are placed inside it and it is not counted as taken.
+    var holdsTasks: Bool = false
 
     init(id: String = UUID().uuidString, title: String, startMinute: Int, durationMinutes: Int,
          weekdays: Int = ScheduleItem.weekdaysMask, symbol: String = "clock.fill", palette: Int = 0) {

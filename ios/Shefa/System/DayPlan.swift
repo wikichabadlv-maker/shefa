@@ -16,6 +16,9 @@ struct DayBlock: Identifiable {
     let title: String
     let artwork: Artwork
     let isDone: Bool
+    /// Time that is the family's own to fill, such as working hours: tasks
+    /// are placed inside it.
+    var isOpen = false
 }
 
 /// One of the day's tasks with the place the day has for it.
@@ -41,6 +44,7 @@ enum DayJournal {
     private static let closedKey = "coach.closedDay"
     private static let moodKey = "coach.moodByDay"
     private static let lateKey = "coach.lateDay"
+    private static let intentionKey = "coach.intention"
 
     private static var store: UserDefaults { .standard }
 
@@ -162,6 +166,34 @@ enum DayJournal {
     static var acceptsLateToday: Bool { store.string(forKey: lateKey) == DayKey.of() }
     static func acceptLate() { store.set(DayKey.of(), forKey: lateKey) }
 
+    // MARK: The first step
+
+    /// Where and when the family said it will begin: "at 9:45, by the desk,
+    /// I start with the call". Said in advance, it is far likelier to happen.
+    struct Intention: Codable, Equatable {
+        var day: String
+        var taskID: String
+        var minute: Int
+        var place: String
+    }
+
+    /// Today's first step, when one was set.
+    static var intention: Intention? {
+        guard let text = store.string(forKey: intentionKey), let data = text.data(using: .utf8),
+              let value = try? JSONDecoder().decode(Intention.self, from: data),
+              value.day == DayKey.of() else { return nil }
+        return value
+    }
+
+    static func setIntention(_ value: Intention?) {
+        guard let value, let data = try? JSONEncoder().encode(value),
+              let text = String(data: data, encoding: .utf8) else {
+            store.removeObject(forKey: intentionKey)
+            return
+        }
+        store.set(text, forKey: intentionKey)
+    }
+
     /// How the day felt, from 1 (heavy) to 3 (good).
     static func mood(on day: Date = .now) -> Int? {
         (store.dictionary(forKey: moodKey) as? [String: Int])?[DayKey.of(day)]
@@ -209,6 +241,8 @@ struct DayPlan {
     let plannedMinutes: Int
     /// The estimates of what was already done today.
     let doneMinutes: Int
+    /// The family closed the day in the evening sitting.
+    var isClosed = false
 
     var unplaced: [PlannedTask] { tasks.filter { $0.span == nil } }
 
@@ -219,7 +253,7 @@ struct DayPlan {
 
     var load: Load {
         if kind.isRest { return .rest }
-        if plannedMinutes == 0 { return freeMinutes < 10 && isToday ? .closed : .empty }
+        if plannedMinutes == 0 { return isToday && (freeMinutes < 10 || isClosed) ? .closed : .empty }
         if freeMinutes < 10 { return .over }
         if share > 1.12 || !unplaced.isEmpty { return .over }
         return share >= 0.85 ? .full : .light
@@ -315,8 +349,11 @@ struct DayPlan {
         }
     }
 
+    /// `chosen` replaces the day's own tasks, for trying a plan before it is
+    /// written. The task of the first step is placed at the minute set for it.
     static func make(day: Date = .now, tasks: [ListItem], schedule: [ScheduleItem], events: [DayEvent] = [],
-                     now: Date = .now) -> DayPlan {
+                     now: Date = .now, chosen: [ListItem]? = nil,
+                     intention: DayJournal.Intention? = DayJournal.intention) -> DayPlan {
         let calendar = Calendar.current
         let isToday: Bool = calendar.isDate(day, inSameDayAs: now)
         let kind: JewishDay = JewishDay.of(day)
@@ -328,9 +365,11 @@ struct DayPlan {
         for item in NowStatus.today(schedule, on: day) {
             let span = DaySpan(start: item.start(on: day), end: item.end(on: day))
             let isDone: Bool = item.isDone(on: day)
-            // A part that was finished early gives its time back.
-            if !isDone { busy.append(span) }
-            blocks.append(DayBlock(id: item.id, span: span, title: item.title, artwork: item.artwork, isDone: isDone))
+            // A part that was finished early gives its time back, and time
+            // that is theirs to fill was never taken.
+            if !isDone, !item.holdsTasks { busy.append(span) }
+            blocks.append(DayBlock(id: item.id, span: span, title: item.title, artwork: item.artwork,
+                                   isDone: isDone, isOpen: item.holdsTasks))
         }
         for event in events where !event.isAllDay && !event.isBirthday {
             let start: Int = calendar.isDate(event.start, inSameDayAs: day) ? ScheduleItem.minute(of: event.start) : 0
@@ -348,17 +387,36 @@ struct DayPlan {
         let room: Int = Int((Double(freeMinutes) / factor).rounded(.down))
         let usual: Int? = DayJournal.usualMinutes
 
+        var order: [ListItem] = DayPlan.ordered(chosen ?? DayPlan.belonging(tasks, to: day, now: now))
+        // The task the family said it will begin with leads the day.
+        let cue: DayJournal.Intention? = isToday ? intention : nil
+        if let cue, let index = order.firstIndex(where: { $0.id == cue.taskID }) {
+            order.insert(order.remove(at: index), at: 0)
+        }
+
         var windows: [DaySpan] = free
         var placed: [PlannedTask] = []
         var planned = 0
-        for task in DayPlan.ordered(DayPlan.belonging(tasks, to: day, now: now)) {
+        for task in order {
             let minutes: Int = DayJournal.estimate(task)
             planned += minutes
             let onClock: Int = max(Int((Double(minutes) * factor / 5).rounded(.up)) * 5, 5)
+            var from: Int = (cue?.taskID == task.id ? cue?.minute : nil) ?? 0
+            var index: Int? = windows.firstIndex(where: { $0.end - max($0.start, from) >= onClock })
+            if index == nil, from > 0 {
+                // The minute that was set has no room any more: the next one that has.
+                from = 0
+                index = windows.firstIndex(where: { $0.length >= onClock })
+            }
             var span: DaySpan?
-            if let index = windows.firstIndex(where: { $0.length >= onClock }) {
-                span = DaySpan(start: windows[index].start, end: windows[index].start + onClock)
-                windows[index].start += onClock
+            if let index {
+                let whole: DaySpan = windows[index]
+                let start: Int = max(whole.start, from)
+                span = DaySpan(start: start, end: start + onClock)
+                var rest: [DaySpan] = []
+                if start - whole.start >= 10 { rest.append(DaySpan(start: whole.start, end: start)) }
+                if whole.end - (start + onClock) >= 5 { rest.append(DaySpan(start: start + onClock, end: whole.end)) }
+                windows.replaceSubrange(index...index, with: rest)
             }
             placed.append(PlannedTask(task: task, minutes: minutes, span: span))
         }
@@ -374,7 +432,8 @@ struct DayPlan {
         return DayPlan(day: day, kind: kind, isToday: isToday, closing: closing, free: free,
                        freeMinutes: freeMinutes, roomMinutes: room, usualMinutes: usual,
                        tasks: placed, blocks: blocks.sorted { $0.span.start < $1.span.start },
-                       plannedMinutes: planned, doneMinutes: done)
+                       plannedMinutes: planned, doneMinutes: done,
+                       isClosed: isToday && DayJournal.isClosedToday)
     }
 
     // MARK: In words
@@ -476,7 +535,12 @@ extension TaskRules {
             task.pushedDay = today
         }
         task.todayDay = ""
-        task.due = toTomorrow ? DayPlan.nextWorkDay(after: now) : nil
+        if toTomorrow {
+            task.due = DayPlan.nextWorkDay(after: now)
+        } else if let due = task.due, due < Calendar.current.startOfDay(for: now).addingTimeInterval(86_400) {
+            // A day that has come is taken off; a day still ahead stays.
+            task.due = nil
+        }
         task.updatedAt = now
         try? context.save()
         SharedSync.shared.changed(in: context)

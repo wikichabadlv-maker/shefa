@@ -38,6 +38,7 @@ struct SharedPayload: Codable {
     var pushedDay: String?
     var anchor: String?
     var anchorOffset: Int?
+    var holdsTasks: Bool?
 }
 
 private struct SharedRow: Codable {
@@ -314,6 +315,7 @@ final class SharedSync {
                     item.doneDays = row.data.doneDays ?? item.doneDays
                     item.anchor = row.data.anchor ?? item.anchor
                     item.anchorOffset = row.data.anchorOffset ?? item.anchorOffset
+                    item.holdsTasks = row.data.holdsTasks ?? item.holdsTasks
                     item.removed = false
                     item.updatedAt = Self.date(row.updated_ms)
                 }
@@ -328,6 +330,7 @@ final class SharedSync {
                 payload.weekdays = item.weekdays
                 payload.anchor = item.anchor
                 payload.anchorOffset = item.anchorOffset
+                payload.holdsTasks = item.holdsTasks
                 outgoing.append(SharedRow(id: item.id, kind: "schedule", data: payload,
                                           deleted: item.removed, updated_ms: Self.stamp(item.updatedAt)))
             case .keep:
@@ -343,6 +346,7 @@ final class SharedSync {
             item.doneDays = row.data.doneDays ?? ""
             item.anchor = row.data.anchor ?? ""
             item.anchorOffset = row.data.anchorOffset ?? 0
+            item.holdsTasks = row.data.holdsTasks ?? false
             item.updatedAt = Self.date(row.updated_ms)
             context.insert(item)
         }
