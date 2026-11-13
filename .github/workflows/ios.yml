@@ -12,6 +12,9 @@ concurrency:
   group: ios-build
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-26
@@ -41,6 +44,7 @@ jobs:
             -project Shefa.xcodeproj -scheme Shefa \
             -configuration Release -sdk iphoneos \
             -derivedDataPath build \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             | tee build.log | grep -E "error|warning: unre|BUILD|\*\*" || true
           grep -q "BUILD SUCCEEDED" build.log
@@ -50,6 +54,17 @@ jobs:
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/Shefa.app Payload/
           zip -qry Shefa.ipa Payload
+
+      - name: Publish the app for download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          sleep 3
+          gh release create latest Shefa.ipa \
+            --target "$GITHUB_SHA" \
+            --title "שפע · בנייה $GITHUB_RUN_NUMBER" \
+            --notes "הגרסה העדכנית להתקנה דרך SideStore."
 
       - uses: actions/upload-artifact@v4
         with:
