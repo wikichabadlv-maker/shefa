@@ -26,24 +26,32 @@ extension ButtonStyle where Self == PressableStyle {
 /// moving between areas never feels like a hard cut.
 struct TabEntrance: ViewModifier {
     let isActive: Bool
-    @State private var isShown = false
+    /// Content starts visible, so nothing can ever stay hidden; only a
+    /// switch between tabs plays the entrance.
+    @State private var isShown = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @MainActor private static var hasLaunched = false
 
     func body(content: Content) -> some View {
         content
             .opacity(isShown ? 1 : 0)
             .scaleEffect(isShown || reduceMotion ? 1 : 0.97)
             .offset(y: isShown || reduceMotion ? 0 : 14)
-            .onAppear { reveal(isActive) }
-            .onChange(of: isActive) { _, value in reveal(value) }
+            .onAppear {
+                // The first screen after launch simply appears.
+                if Self.hasLaunched, isActive { play() }
+                Self.hasLaunched = true
+            }
+            .onChange(of: isActive) { _, value in
+                if value { play() }
+            }
     }
 
-    private func reveal(_ active: Bool) {
-        if active {
-            withAnimation(.spring(duration: 0.45, bounce: 0.2)) { isShown = true }
-        } else {
-            isShown = false
-        }
+    private func play() {
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { isShown = false }
+        withAnimation(.spring(duration: 0.45, bounce: 0.2)) { isShown = true }
     }
 }
 
