@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// Rules for tasks that several screens share.
+@MainActor
 enum TaskRules {
     /// Marks a task done or open again, with its reward, and creates the
     /// next round of a repeating task.
