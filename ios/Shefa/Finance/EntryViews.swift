@@ -44,6 +44,7 @@ enum QuickKind: String, CaseIterable, Identifiable {
 /// The lightning button: add anything in a few seconds.
 struct QuickAddSheet: View {
     @State var kind: QuickKind = .expense
+    var presetCategory: String?
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
@@ -128,6 +129,7 @@ struct QuickAddSheet: View {
                 }
             }
             .navigationTitle("הוספה מהירה")
+            .onAppear { if categoryID == nil { categoryID = presetCategory } }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

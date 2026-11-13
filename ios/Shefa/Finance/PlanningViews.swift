@@ -38,8 +38,30 @@ struct BudgetList: View {
 
         BudgetHero(used: used, total: total, month: month)
 
+        let ordered = categories.sorted { first, second in
+            func rank(_ category: SpendCategory) -> Int {
+                let cap = limit(category)
+                let used = spent[category.id] ?? 0
+                if cap > 0 && used > cap { return 0 }
+                if isFast(used, cap) { return 1 }
+                if cap > 0 || used > 0 { return 2 }
+                return 3
+            }
+            return rank(first) < rank(second)
+        }
+        let unplanned = categories.filter { limit($0) == 0 && (spent[$0.id] ?? 0) > 0 }
+        if total > 0, !unplanned.isEmpty {
+            Label("\(unplanned.count) קטגוריות עם הוצאות ובלי תקציב: \(unplanned.prefix(3).map(\.title).joined(separator: ", "))",
+                  systemImage: "exclamationmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.amberInk)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.amberGround, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+
         VStack(spacing: 0) {
-            ForEach(categories) { category in
+            ForEach(ordered) { category in
                 Button {
                     let current = limit(category)
                     amountText = current > 0 ? Money.digits(current) : ""
@@ -49,7 +71,7 @@ struct BudgetList: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)
-                if category.id != categories.last?.id {
+                if category.id != ordered.last?.id {
                     Divider().padding(.leading, 54)
                 }
             }
@@ -104,6 +126,38 @@ struct BudgetList: View {
         editing = nil
     }
 
+    /// How much of the month has passed, 0...1; 1 for earlier months.
+    private var monthPassed: Double {
+        let calendar = Calendar.current
+        guard calendar.isDate(month, equalTo: .now, toGranularity: .month) else { return 1 }
+        let count = calendar.range(of: .day, in: .month, for: month)?.count ?? 30
+        return Double(calendar.component(.day, from: .now)) / Double(count)
+    }
+
+    private var daysLeft: Int {
+        let calendar = Calendar.current
+        guard calendar.isDate(month, equalTo: .now, toGranularity: .month) else { return 0 }
+        let count = calendar.range(of: .day, in: .month, for: month)?.count ?? 30
+        return count - calendar.component(.day, from: .now) + 1
+    }
+
+    /// Spending clearly ahead of the calendar, though still inside the budget.
+    private func isFast(_ spent: Decimal, _ limit: Decimal) -> Bool {
+        guard limit > 0, spent <= limit, monthPassed < 1 else { return false }
+        return share(spent, of: limit) > monthPassed + 0.15
+    }
+
+    private func note(spent: Decimal, limit: Decimal) -> String {
+        if spent > limit { return "חריגה של \(Money.text(spent - limit))" }
+        let left = limit - spent
+        if daysLeft > 0 {
+            let perDay = Money.text(left / Decimal(daysLeft))
+            return isFast(spent, limit) ? "קצב מהיר · נשארו \(Money.text(left)), כ־\(perDay) ליום"
+                : "נשארו \(Money.text(left)), כ־\(perDay) ליום"
+        }
+        return "נשארו \(Money.text(left))"
+    }
+
     private func row(_ category: SpendCategory, spent: Decimal, limit: Decimal) -> some View {
         let isOver = limit > 0 && spent > limit
         return HStack(spacing: 12) {
@@ -119,7 +173,10 @@ struct BudgetList: View {
                 }
                 if limit > 0 {
                     ProgressView(value: share(spent, of: limit))
-                        .tint(isOver ? Color.red : category.artwork.start)
+                        .tint(isOver ? Color.red : (isFast(spent, limit) ? Color.orange : category.artwork.start))
+                    Text(note(spent: spent, limit: limit))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isOver ? Color.red : (isFast(spent, limit) ? Color.orange : Color.secondary))
                 } else {
                     Text("ללא תקציב")
                         .font(.system(size: 12))
@@ -226,7 +283,7 @@ struct ProgressRing: View {
     }
 }
 
-/// Maaser for the month and the family's savings goals.
+/// The family's savings goals. Maaser has its own section.
 struct SavingsList: View {
     let month: MonthSummary
     let entries: [LedgerEntry]
@@ -247,7 +304,7 @@ struct SavingsList: View {
     private var hasEmergency: Bool { goals.contains { $0.id == SavingsGoal.emergencyID } }
 
     var body: some View {
-        MaaserCard(month: month)
+        savingsHero
 
         HStack {
             Text("יעדי חיסכון")
@@ -257,10 +314,6 @@ struct SavingsList: View {
                 .font(.system(size: 15, weight: .bold))
         }
         .padding(.horizontal, 4)
-
-        if goals.count > 1 {
-            totalCard
-        }
 
         ForEach(goals) { goal in
             Button {
@@ -294,32 +347,78 @@ struct SavingsList: View {
             }
     }
 
-    private var totalCard: some View {
-        let share = totalTarget > 0 ? (totalSaved / totalTarget).double : 0
-        return HStack(spacing: 14) {
-            ProgressRing(share: share, lineWidth: 7, track: Theme.chip, fill: Theme.accent)
-                .frame(width: 54, height: 54)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("חסכנו עד היום")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(Money.text(totalSaved))
-                    .font(.system(size: 26, weight: .heavy))
-                    .monospacedDigit()
-            }
-            Spacer(minLength: 0)
-            VStack(alignment: .trailing, spacing: 1) {
-                Text("מתוך")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text(Money.text(totalTarget))
-                    .font(.system(size: 17, weight: .bold))
-                    .monospacedDigit()
-            }
+    /// Everything put aside so far, what went in this month, and what the
+    /// goals ask for each month.
+    private var savingsHero: some View {
+        let share = totalTarget > 0 ? min((totalSaved / totalTarget).double, 1) : 0
+        let monthly = goals.reduce(Decimal(0)) { $0 + ($1.left > 0 ? ($1.monthlyNeeded ?? 0) : 0) }
+        let rate = month.income > 0 ? (month.saved / month.income).double : 0
+        let line: String
+        if goals.isEmpty {
+            line = "יעד אחד ברור עם סכום ותאריך שווה יותר מכוונה טובה."
+        } else if monthly > 0 {
+            line = "כדי לעמוד בכל היעדים בזמן צריך לשים בצד \(Money.text(monthly)) בחודש."
+        } else {
+            line = "קבעו תאריך ליעד, והאפליקציה תחשב כמה לשים בצד בכל חודש."
         }
-        .padding(16)
-        .cardSurface()
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("חסכנו עד היום")
+                        .font(.system(size: 15, weight: .semibold))
+                        .opacity(0.9)
+                    Text(Money.text(totalSaved))
+                        .font(.system(size: 42, weight: .heavy))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                        .contentTransition(.numericText())
+                    if totalTarget > 0 {
+                        Text("מתוך \(Money.text(totalTarget)) בכל היעדים")
+                            .font(.system(size: 14, weight: .bold))
+                            .opacity(0.9)
+                    }
+                }
+                Spacer(minLength: 0)
+                ProgressRing(share: share, lineWidth: 10)
+                    .frame(width: 88, height: 88)
+                    .overlay {
+                        Image(systemName: "banknote.fill")
+                            .font(.system(size: 24, weight: .bold))
+                    }
+            }
+            HStack(spacing: 0) {
+                stat("נכנס החודש", Money.text(month.saved))
+                Divider().frame(height: 28).overlay(.white.opacity(0.3))
+                stat("מההכנסה", rate.formatted(.percent.precision(.fractionLength(0))))
+                Divider().frame(height: 28).overlay(.white.opacity(0.3))
+                stat("נדרש בחודש", monthly > 0 ? Money.text(monthly) : "לא נקבע")
+            }
+            .padding(.vertical, 10)
+            .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Text(line)
+                .font(.system(size: 13, weight: .medium))
+                .opacity(0.92)
+        }
+        .foregroundStyle(.white)
+        .padding(20)
+        .background(Theme.emerald.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .shadow(color: Color(hex: 0x047857).opacity(0.4), radius: 20, y: 12)
         .accessibilityElement(children: .combine)
+    }
+
+    private func stat(_ title: String, _ value: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value)
+                .font(.system(size: 16, weight: .heavy))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .opacity(0.85)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var emergencyCard: some View {

@@ -6,6 +6,7 @@ enum FinanceSection: String, CaseIterable, Identifiable {
     case transactions = "תנועות"
     case budget = "תקציב"
     case savings = "חיסכון"
+    case maaser = "מעשר"
 
     var id: String { rawValue }
 }
@@ -87,6 +88,8 @@ struct FinanceView: View {
                             BudgetList(entries: counted, month: month)
                         case .savings:
                             SavingsList(month: Ledger.summary(counted), entries: counted)
+                        case .maaser:
+                            MaaserView(entries: counted, month: month, summary: summary)
                         }
                     }
                     .id(section)

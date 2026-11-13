@@ -22,6 +22,7 @@ enum Launch {
         switch screen {
         case "finance-overview": return .overview
         case "finance-budget": return .budget
+        case "finance-maaser": return .maaser
         case "finance-savings", "finance-goal": return .savings
         case "finance-entry": return .transactions
         default: return screen == "finance-transactions" ? .transactions : .overview

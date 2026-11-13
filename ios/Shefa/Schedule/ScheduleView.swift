@@ -44,6 +44,7 @@ struct ScheduleView: View {
                 DayStrip(day: $day)
                 DayHero(items: todays, day: day, now: now, isToday: isToday)
                 QuickScheduleBar(day: day, todays: todays)
+                CalendarDayCard(day: day)
                 timeline(now: now)
                 if isToday {
                     HabitsCard()

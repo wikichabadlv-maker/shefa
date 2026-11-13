@@ -93,6 +93,7 @@ final class Notifier {
         }
 
         requests += Signing.reminders(now: now)
+        requests += CalendarFeed.shared.reminders(now: now)
 
         if isOn(Coach.enabledKey, default: true) {
             requests += coachRequests(in: context, now: now)

@@ -17,6 +17,8 @@ struct SettingsView: View {
     @AppStorage(Notifier.shmaKey) private var notifyShma = false
     @AppStorage(Notifier.sunsetKey) private var notifySunset = false
     @AppStorage(Coach.enabledKey) private var notifyCoach = true
+    @AppStorage(CalendarFeed.remindKey) private var notifyCalendar = true
+    @State private var calendarFeed = CalendarFeed.shared
     @State private var backup = Backup.shared
     @State private var showsQuestions = false
     @State private var finder = LocationFinder.shared
@@ -149,6 +151,32 @@ struct SettingsView: View {
                 remindersChanged()
             }
             .onChange(of: cityID) { _, _ in
+                Notifier.shared.refresh(in: context)
+            }
+
+            Section {
+                Toggle("אירועים וימי הולדת מלוח השנה", isOn: Binding(get: { calendarFeed.isOn }, set: { isOn in
+                    if isOn {
+                        Task {
+                            await calendarFeed.turnOn()
+                            Notifier.shared.refresh(in: context)
+                        }
+                    } else {
+                        calendarFeed.turnOff()
+                        Notifier.shared.refresh(in: context)
+                    }
+                }))
+                if calendarFeed.isOn {
+                    Toggle("תזכורת בבוקר של יום הולדת, ובערב שלפניו", isOn: $notifyCalendar)
+                }
+            } header: {
+                Text("לוח השנה של אפל")
+            } footer: {
+                Text(calendarFeed.isDenied
+                     ? "הגישה ללוח השנה חסומה. אפשר לפתוח אותה בהגדרות האייפון, תחת שפע, לוחות שנה, גישה מלאה."
+                     : "האפליקציה רק קוראת את לוח השנה ומציגה ימי הולדת ואירועים בדף הבית ובלו״ז. דבר לא נשלח מהמכשיר.")
+            }
+            .onChange(of: notifyCalendar) { _, _ in
                 Notifier.shared.refresh(in: context)
             }
 
