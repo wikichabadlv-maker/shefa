@@ -51,8 +51,26 @@ struct MoreView: View {
                                 tile(area)
                             }
                             .buttonStyle(.plain)
+                        } else if area.symbol == "cart.fill" {
+                            NavigationLink {
+                                CheckListView(kind: ListItem.shopping, title: "רשימת קניות",
+                                              placeholder: "מה צריך לקנות?",
+                                              emptyText: "הרשימה ריקה. הוסיפו מוצר ראשון.")
+                            } label: {
+                                tile(area)
+                            }
+                            .buttonStyle(.plain)
                         } else {
                             tile(area)
+                                .overlay(alignment: .topTrailing) {
+                                    Text("בקרוב")
+                                        .font(.system(size: 11, weight: .heavy))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 8)
+                                        .frame(height: 22)
+                                        .background(.black.opacity(0.25), in: Capsule())
+                                        .padding(10)
+                                }
                         }
                     }
                 }

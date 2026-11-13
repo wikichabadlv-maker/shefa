@@ -10,6 +10,6 @@ struct ShefaApp: App {
                 .environment(\.locale, Locale(identifier: "he_IL"))
                 .tint(Theme.accent)
         }
-        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self])
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self])
     }
 }

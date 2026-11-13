@@ -24,8 +24,10 @@ struct RootView: View {
                 FinanceView()
             }
             Tab("מטלות", systemImage: "checklist", value: AppTab.tasks) {
-                ComingSoonView(title: "מטלות", symbol: "checklist",
-                               text: "מטלות אישיות ומשותפות לשניכם.")
+                NavigationStack {
+                    CheckListView(kind: ListItem.task, title: "מטלות", placeholder: "מטלה חדשה",
+                                  emptyText: "כתבו מטלה ולחצו על סיום במקלדת כדי להוסיף אותה.")
+                }
             }
             Tab(value: AppTab.more, role: .search) {
                 MoreView()
@@ -46,5 +48,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(\.layoutDirection, .rightToLeft)
-        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self], inMemory: true)
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self], inMemory: true)
 }

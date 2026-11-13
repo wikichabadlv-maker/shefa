@@ -62,6 +62,11 @@ struct SpendCategory: Identifiable, Hashable {
 
     static let maaserID = "maaser"
     static let incomeID = "income"
+    static let transferID = "transfer"
+    static let savingsID = "savings"
+
+    /// Categories that move money around rather than spend it.
+    static let notSpending: Set<String> = [transferID, savingsID]
 
     static let all: [SpendCategory] = [
         SpendCategory(id: "food", title: "מזון ומכולת", symbol: "cart.fill", artwork: Theme.pink),
@@ -75,6 +80,7 @@ struct SpendCategory: Identifiable, Hashable {
         SpendCategory(id: maaserID, title: "מעשר וצדקה", symbol: "heart.fill", artwork: Theme.amber),
         SpendCategory(id: "savings", title: "חיסכון", symbol: "banknote.fill", artwork: Theme.emerald),
         SpendCategory(id: incomeID, title: "הכנסות", symbol: "arrow.up", artwork: Theme.green),
+        SpendCategory(id: transferID, title: "חיוב כרטיס והעברות", symbol: "arrow.left.arrow.right", artwork: Artwork(0x94A3B8, 0x475569)),
         SpendCategory(id: "other", title: "אחר", symbol: "square.grid.2x2.fill", artwork: Artwork(0x64748B, 0x334155)),
     ]
 

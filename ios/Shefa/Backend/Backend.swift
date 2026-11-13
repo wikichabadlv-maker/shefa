@@ -158,12 +158,19 @@ final class Backend {
             if let entry = known[row.id] {
                 entry.amount = amount
                 entry.title = row.description
-                if let answer = answers[row.id] { entry.categoryID = answer }
+                if let answer = answers[row.id] {
+                    entry.categoryID = answer
+                } else if entry.categoryID == nil {
+                    entry.categoryID = rules[Ledger.merchantKey(row.description)]
+                        ?? Classifier.guess(title: row.description, amount: amount,
+                                            isBankAccount: row.company == "discount")
+                }
                 continue
             }
             let guess = answers[row.id]
                 ?? rules[Ledger.merchantKey(row.description)]
-                ?? (amount > 0 ? SpendCategory.incomeID : nil)
+                ?? Classifier.guess(title: row.description, amount: amount,
+                                    isBankAccount: row.company == "discount")
             let entry = LedgerEntry(
                 id: row.id,
                 date: dayFormat.date(from: "\(row.date) 12:00") ?? .now,

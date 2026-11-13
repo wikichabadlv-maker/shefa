@@ -56,7 +56,8 @@ extension Ledger {
     static func spentByCategory(_ entries: [LedgerEntry], now: Date = .now) -> [String: Decimal] {
         var result: [String: Decimal] = [:]
         for entry in entries
-        where entry.amount < 0 && Calendar.current.isDate(entry.date, equalTo: now, toGranularity: .month) {
+        where entry.amount < 0 && !SpendCategory.notSpending.contains(entry.categoryID ?? "")
+            && Calendar.current.isDate(entry.date, equalTo: now, toGranularity: .month) {
             result[entry.categoryID ?? SpendCategory.unknown.id, default: 0] -= entry.amount
         }
         return result

@@ -7,6 +7,7 @@ struct HomeView: View {
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
 
     @Query private var budgetLines: [BudgetLine]
+    @State private var backend = Backend.shared
     @Query(sort: \SavingsGoal.createdAt) private var goals: [SavingsGoal]
 
     private var month: MonthSummary { Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines)) }
@@ -22,6 +23,32 @@ struct HomeView: View {
                         .foregroundStyle(Theme.accent)
                         .padding(.horizontal, 4)
                         .padding(.bottom, -14)
+
+                    if !backend.isSignedIn {
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            HStack(spacing: 12) {
+                                ArtworkIcon(artwork: Theme.blue, symbol: "person.crop.circle.badge.checkmark")
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text("מוצגים נתוני דוגמה")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundStyle(Color.primary)
+                                    Text("התחברו לחשבון המשפחתי כדי לראות את התנועות שלכם")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.secondary)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer(minLength: 0)
+                                Image(systemName: "chevron.forward")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.secondary)
+                            }
+                            .padding(14)
+                            .cardSurface()
+                        }
+                        .buttonStyle(.plain)
+                    }
 
                     MonthHeroCard(month: month)
 

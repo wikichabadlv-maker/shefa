@@ -16,8 +16,43 @@ struct FinanceView: View {
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
     @Query private var budgetLines: [BudgetLine]
 
+    @State private var month = Date.now
+
     private var summary: MonthSummary {
-        Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines))
+        Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines), now: month)
+    }
+
+    private var monthEntries: [LedgerEntry] { Ledger.inMonth(entries, month) }
+
+    private var isCurrentMonth: Bool {
+        Calendar.current.isDate(month, equalTo: .now, toGranularity: .month)
+    }
+
+    private var monthTitle: String {
+        month.formatted(Date.FormatStyle(locale: Ledger.hebrew).month(.wide).year())
+    }
+
+    private func shiftMonth(_ by: Int) {
+        if let next = Calendar.current.date(byAdding: .month, value: by, to: month) {
+            withAnimation(.snappy) { month = next }
+        }
+    }
+
+    private var monthBar: some View {
+        HStack {
+            Button("החודש הקודם", systemImage: "chevron.backward") { shiftMonth(-1) }
+                .labelStyle(.iconOnly)
+            Spacer()
+            Text(monthTitle)
+                .font(.system(size: 17, weight: .heavy))
+                .contentTransition(.numericText())
+            Spacer()
+            Button("החודש הבא", systemImage: "chevron.forward") { shiftMonth(1) }
+                .labelStyle(.iconOnly)
+                .disabled(isCurrentMonth)
+        }
+        .font(.system(size: 16, weight: .bold))
+        .padding(.horizontal, 6)
     }
 
     var body: some View {
@@ -31,15 +66,19 @@ struct FinanceView: View {
                     }
                     .pickerStyle(.segmented)
 
+                    if section != .savings {
+                        monthBar
+                    }
+
                     switch section {
                     case .overview:
                         MonthHeroCard(month: summary)
                     case .transactions:
-                        TransactionsList(entries: entries, query: query)
+                        TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
                     case .budget:
-                        BudgetList(entries: entries)
+                        BudgetList(entries: entries, month: month)
                     case .savings:
-                        SavingsList(month: summary)
+                        SavingsList(month: Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines)))
                     }
                 }
                 .padding(.horizontal, 16)

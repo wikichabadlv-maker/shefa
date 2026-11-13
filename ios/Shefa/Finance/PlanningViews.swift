@@ -4,13 +4,14 @@ import SwiftUI
 /// The monthly budget, category by category.
 struct BudgetList: View {
     let entries: [LedgerEntry]
+    let month: Date
     @Environment(\.modelContext) private var context
     @Query private var lines: [BudgetLine]
     @State private var editing: SpendCategory?
     @State private var amountText = ""
 
     private var categories: [SpendCategory] {
-        SpendCategory.all.filter { $0.id != SpendCategory.incomeID && $0.id != "savings" && $0.id != SpendCategory.maaserID }
+        SpendCategory.all.filter { $0.id != SpendCategory.incomeID && $0.id != SpendCategory.maaserID && !SpendCategory.notSpending.contains($0.id) }
     }
 
     private func limit(_ category: SpendCategory) -> Decimal {
@@ -18,12 +19,12 @@ struct BudgetList: View {
     }
 
     var body: some View {
-        let spent = Ledger.spentByCategory(entries)
+        let spent = Ledger.spentByCategory(entries, now: month)
         let total = Ledger.totalBudget(lines)
         let used = categories.reduce(Decimal(0)) { $0 + (spent[$1.id] ?? 0) } + (spent[SpendCategory.unknown.id] ?? 0)
 
         VStack(alignment: .leading, spacing: 8) {
-            Text("נוצל החודש")
+            Text("נוצל בחודש זה")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.secondary)
             Text(Money.text(used))

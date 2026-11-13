@@ -49,6 +49,10 @@ enum Ledger {
             .lowercased()
     }
 
+    static func inMonth(_ entries: [LedgerEntry], _ month: Date) -> [LedgerEntry] {
+        entries.filter { Calendar.current.isDate($0.date, equalTo: month, toGranularity: .month) }
+    }
+
     static func days(_ entries: [LedgerEntry]) -> [LedgerDay] {
         let groups = Dictionary(grouping: entries) { Calendar.current.startOfDay(for: $0.date) }
         return groups
@@ -59,14 +63,17 @@ enum Ledger {
     static func summary(_ entries: [LedgerEntry], budget: Decimal = 14_500, now: Date = .now) -> MonthSummary {
         let calendar = Calendar.current
         let month = entries.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
-        let income = month.filter { $0.amount > 0 }.reduce(Decimal(0)) { $0 + $1.amount }
+        let income = month
+            .filter { $0.amount > 0 && $0.categoryID != SpendCategory.transferID }
+            .reduce(Decimal(0)) { $0 + $1.amount }
         let maaser = month.filter { $0.categoryID == SpendCategory.maaserID }.reduce(Decimal(0)) { $0 - $1.amount }
         let saved = month.filter { $0.categoryID == "savings" }.reduce(Decimal(0)) { $0 - $1.amount }
         let spent = month
-            .filter { $0.amount < 0 && $0.categoryID != "savings" }
+            .filter { $0.amount < 0 && !SpendCategory.notSpending.contains($0.categoryID ?? "") }
             .reduce(Decimal(0)) { $0 - $1.amount }
         let daysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 30
-        let daysLeft = daysInMonth - calendar.component(.day, from: now)
+        let isCurrentMonth = calendar.isDate(now, equalTo: .now, toGranularity: .month)
+        let daysLeft = isCurrentMonth ? daysInMonth - calendar.component(.day, from: .now) : 0
         return MonthSummary(
             budget: budget, remaining: budget - spent, daysLeft: daysLeft,
             income: income, saved: saved, maaserGiven: maaser, maaserDue: income / 10
