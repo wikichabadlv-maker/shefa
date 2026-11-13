@@ -320,7 +320,7 @@ struct PlanDayFlow: View {
                     OnColorBadge(text: date)
                     OnColorBadge(text: HebrewDate.text(now))
                 }
-                if let name = base.kind.title {
+                if let name = base.dayName {
                     Text(name)
                         .font(.system(size: 15, weight: .heavy))
                         .opacity(0.95)
@@ -1076,7 +1076,11 @@ struct CloseDayFlow: View {
                 HStack(spacing: 8) {
                     OnColorBadge(text: date)
                     if let name = plan.kind.title {
-                        OnColorBadge(text: name)
+                        // A day with a long name keeps its first part here.
+                        ViewThatFits(in: .horizontal) {
+                            OnColorBadge(text: name)
+                            OnColorBadge(text: name.components(separatedBy: " · ").first ?? name)
+                        }
                     }
                 }
                 Text(shown)
@@ -1191,7 +1195,7 @@ struct CloseDayFlow: View {
         var title: String = "היום נסגר"
         var text: String = "מה שנעשה, נעשה. מה שנשאר מחכה ביום שבחרתם לו."
         if kind.isEve {
-            title = kind.next.isShabbat ? "שבת שלום" : "חג שמח"
+            title = kind.next.greeting
             text = "השבוע נסגר. מה שנשאר מחכה ל" + DayPlan.name(ofComing: DayPlan.nextWorkDay(after: now), now: now) + "."
         }
         dismiss()

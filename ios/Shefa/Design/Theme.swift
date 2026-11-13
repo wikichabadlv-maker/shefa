@@ -6,7 +6,7 @@ enum Theme {
     static let accent = Color("Accent", bundle: nil, light: 0x047857, dark: 0x34D399)
     static let ground = Color("Ground", bundle: nil, light: 0xF5F6F8, dark: 0x000000)
     static let card = Color("Card", bundle: nil, light: 0xFFFFFF, dark: 0x1C1C1E)
-    static let chip = Color("Chip", bundle: nil, light: 0xEBECF0, dark: 0x2C2C2E)
+    static let chip = Color("Chip", bundle: nil, light: 0xEBECF0, dark: 0x2C2C2E, raised: 0x3A3A3C)
     static let amberGround = Color("AmberGround", bundle: nil, light: 0xFEF3C7, dark: 0x4A3A10)
     static let amberInk = Color("AmberInk", bundle: nil, light: 0x92400E, dark: 0xFDE68A)
 
@@ -44,10 +44,14 @@ extension Color {
         )
     }
 
-    /// A color that changes with the light or dark appearance.
-    init(_ name: String, bundle: Bundle?, light: UInt32, dark: UInt32) {
+    /// A color that changes with the light or dark appearance. In the dark
+    /// the surfaces of a sheet are a step lighter than those of a screen, so
+    /// what lies on them may ask for a lighter value of its own there.
+    init(_ name: String, bundle: Bundle?, light: UInt32, dark: UInt32, raised: UInt32? = nil) {
         self.init(uiColor: UIColor { traits in
-            UIColor(Color(hex: traits.userInterfaceStyle == .dark ? dark : light))
+            guard traits.userInterfaceStyle == .dark else { return UIColor(Color(hex: light)) }
+            if let raised, traits.userInterfaceLevel == .elevated { return UIColor(Color(hex: raised)) }
+            return UIColor(Color(hex: dark))
         })
     }
 }

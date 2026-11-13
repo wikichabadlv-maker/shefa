@@ -100,10 +100,19 @@ struct RootView: View {
             if Launch.screen.hasPrefix("close-day") { router.isClosingDay = true }
             if Launch.screen == "quick" { router.isQuickAdding = true }
             if Launch.screen == "now" { router.isNowPlaying = true }
-            if Launch.screen == "routine", let first = Routines.shared.all.first {
-                // A test run opens in the middle of the second step.
+            if ["routine", "routine-over", "routine-end"].contains(Launch.screen),
+               let first = Routines.shared.all.first {
+                // A test run opens in the middle of the second step, or past
+                // the time of the first, or on the last step just before the end.
                 RoutineRun.shared.start(first, now: Date.now.addingTimeInterval(-26 * 60))
-                _ = RoutineRun.shared.finish(done: true, now: Date.now.addingTimeInterval(-9 * 60))
+                if Launch.screen == "routine" {
+                    _ = RoutineRun.shared.finish(done: true, now: Date.now.addingTimeInterval(-9 * 60))
+                }
+                if Launch.screen == "routine-end" {
+                    for _ in 1..<max(first.steps.count, 1) {
+                        _ = RoutineRun.shared.finish(done: true, now: Date.now.addingTimeInterval(-60))
+                    }
+                }
                 router.isRoutinePlaying = true
             }
             if Launch.screen == "moment" {

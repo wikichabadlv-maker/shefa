@@ -54,8 +54,9 @@ enum Deck {
         let minute = ScheduleItem.minute(of: now)
         let list = NowStatus.today(items, on: now)
         let openHabits = habits.filter { !$0.removed && !$0.isDone(on: now) }.sorted { $0.order < $1.order }
-        // Shabbat and the festivals have no tasks to offer.
-        let isRest: Bool = JewishDay.of(now).isRest
+        // Shabbat and the festivals have no tasks to offer, from candle
+        // lighting until they are out.
+        let isRest: Bool = Notifier.isHolyTime(now)
         let cue: DayJournal.Intention? = isRest ? nil : DayJournal.intention
         var todays: [ListItem] = isRest ? [] : DayPlan.ordered(tasks.filter { !$0.isDone && !$0.removed && $0.isForToday })
         if let cue, let index = todays.firstIndex(where: { $0.id == cue.taskID }) {

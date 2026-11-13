@@ -71,15 +71,17 @@ enum DemoData {
         }
         context.insert(ListItem(kind: ListItem.learning, title: "לסיים פרק ב׳ בתניא"))
 
-        let schedule: [(String, Int, Int, String, Int)] = [
-            ("שחרית", 7 * 60, 60, "sunrise.fill", 4),
-            ("חת״ת ורמב״ם", 8 * 60 + 15, 30, "book.fill", 0),
-            ("עבודה", 9 * 60, 420, "briefcase.fill", 7),
-            ("חברותא", 20 * 60, 60, "person.2.fill", 3),
+        // Work and the evening study keep to Sunday through Thursday.
+        let midweek = 0b0011111
+        let schedule: [(String, Int, Int, String, Int, Int)] = [
+            ("שחרית", 7 * 60, 60, "sunrise.fill", 4, ScheduleItem.everyDay),
+            ("חת״ת ורמב״ם", 8 * 60 + 15, 30, "book.fill", 0, ScheduleItem.everyDay),
+            ("עבודה", 9 * 60, 420, "briefcase.fill", 7, midweek),
+            ("חברותא", 20 * 60, 60, "person.2.fill", 3, midweek),
         ]
         for line in schedule {
             context.insert(ScheduleItem(title: line.0, startMinute: line.1, durationMinutes: line.2,
-                                        weekdays: ScheduleItem.everyDay, symbol: line.3, palette: line.4))
+                                        weekdays: line.5, symbol: line.3, palette: line.4))
         }
         // One part that follows the sun and not the clock.
         let mincha = ScheduleItem(title: "מנחה", startMinute: 16 * 60 + 15, durationMinutes: 15,
@@ -134,7 +136,11 @@ enum DemoData {
     private static func fillRoutines() {
         let store = Routines.shared
         if store.all.isEmpty {
-            for template in Routines.templates { _ = store.add(template: template) }
+            // One test run shows the eve before the family has a board of its own.
+            let skipsBoard: Bool = Launch.screen == "erev-new"
+            for template in Routines.templates where !(skipsBoard && template.isForCandles) {
+                _ = store.add(template: template)
+            }
         }
         guard JewishDay.of(.now).isEve, ErevBoard.done().isEmpty, let erev = store.forCandles else { return }
         for step in erev.steps.prefix(2) { ErevBoard.setDone(step.id, true) }

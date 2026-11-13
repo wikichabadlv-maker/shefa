@@ -9,7 +9,8 @@ enum Launch {
     static var tab: AppTab {
         if screen.hasPrefix("finance") { return .finance }
         switch screen {
-        case "schedule", "routine", "routine-edit", "routines", "erev": return .schedule
+        case "schedule", "routine", "routine-edit", "routine-over", "routine-end", "routines", "erev",
+             "erev-new": return .schedule
         case "tasks", "task-stuck", "plan-day", "plan-day-pick", "plan-day-first",
              "close-day", "close-day-left", "close-day-next": return .tasks
         case "notes", "achievements", "settings", "zmanim", "books", "study": return .more
@@ -115,6 +116,8 @@ final class AppRouter {
     var isClosingDay = false
     /// The full screen of a routine that is being played.
     var isRoutinePlaying = false
+    /// A place in the schedule screen to travel to, such as "routines".
+    var scheduleAnchor = ""
 
     /// Where a tapped reminder leads.
     func open(_ place: String) {

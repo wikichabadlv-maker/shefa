@@ -107,7 +107,7 @@ struct DayRingHero: View {
 
     private var headline: String {
         switch plan.load {
-        case .rest: return plan.kind.title ?? "שבת קודש"
+        case .rest: return plan.restTitle
         case .closed: return doneCount > 0 ? "היום הושלם" : "היום נסגר"
         case .empty: return doneCount > 0 ? "היום הושלם" : "מה חשוב היום?"
         case .over: return "לא הכול נכנס"
@@ -143,8 +143,12 @@ struct DayRingHero: View {
                         Text("היום")
                             .font(.system(size: 15, weight: .semibold))
                             .opacity(0.9)
-                        if let title = plan.kind.title, plan.load != .rest {
-                            badge(title, symbol: nil)
+                        if let title = plan.dayName, plan.load != .rest {
+                            // A day with a long name keeps its first part here.
+                            ViewThatFits(in: .horizontal) {
+                                badge(title, symbol: nil)
+                                badge(title.components(separatedBy: " · ").first ?? title, symbol: nil)
+                            }
                         }
                         if doneCount > 0, openCount > 0 {
                             badge("\(doneCount)", symbol: "checkmark")
@@ -228,7 +232,8 @@ struct DayRingHero: View {
                     .font(.system(size: 22, weight: .heavy))
                     .monospacedDigit()
                     .contentTransition(.numericText())
-                Text("מתוך " + DayRingHero.short(plan.roomMinutes))
+                // With no room left there is nothing to measure against.
+                Text(plan.roomMinutes >= 5 ? "מתוך " + DayRingHero.short(plan.roomMinutes) : "מתוכנן")
                     .font(.system(size: 11, weight: .bold))
                     .monospacedDigit()
                     .opacity(0.85)

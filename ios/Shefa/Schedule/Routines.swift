@@ -467,14 +467,7 @@ struct ErevBoard {
         // On Chanukah the Chanukah light is kindled before the Shabbat candles.
         let chanukah: Int? = kind.next.isShabbat ? kind.chanukahCandle : nil
         return ErevBoard(day: now, candles: zman.date, lines: lines, left: left, untilCandles: until,
-                         chanukahCandle: chanukah, greeting: ErevBoard.greeting(for: kind.next))
-    }
-
-    private static func greeting(for rest: JewishDay) -> String {
-        guard let yomTov = rest.yomTov else { return "שבת שלום" }
-        if rest.fast != nil { return "גמר חתימה טובה" }
-        if yomTov == "ראש השנה" { return "כתיבה וחתימה טובה" }
-        return rest.isShabbat ? "שבת שלום וחג שמח" : "חג שמח"
+                         chanukahCandle: chanukah, greeting: kind.next.greeting)
     }
 
     /// The eve as it is called: "ערב שבת קודש", "ערב חג הפסח".

@@ -267,6 +267,10 @@ struct DayPlan {
     let day: Date
     let kind: JewishDay
     let isToday: Bool
+    /// No work on this day, or at this hour of it: Shabbat or a festival,
+    /// from candle lighting on its eve until it is out. The evening after
+    /// it is a working evening again.
+    let isHoly: Bool
     /// The minute the working day closes: the evening hour the family
     /// chose, or an hour before candle lighting.
     let closing: Int
@@ -296,7 +300,7 @@ struct DayPlan {
     }
 
     var load: Load {
-        if kind.isRest { return .rest }
+        if isHoly { return .rest }
         if plannedMinutes == 0 { return isToday && (freeMinutes < 10 || isClosed) ? .closed : .empty }
         if freeMinutes < 10 { return .over }
         if share > 1.12 || !unplaced.isEmpty { return .over }
@@ -317,8 +321,9 @@ struct DayPlan {
     /// When a day that has not begun yet is taken to open.
     static let opening = 8 * 60
 
-    static func closing(day: Date, kind: JewishDay) -> Int {
-        if kind.isRest { return 0 }
+    static func closing(day: Date, kind: JewishDay, isOut: Bool = false) -> Int {
+        // A day of rest has no working hours, until it is out.
+        if kind.isRest && !isOut { return 0 }
         var limit: Int = Coach.eveningMinute ?? (21 * 60 + 30)
         if Calendar.current.isDateInToday(day), DayJournal.acceptsLateToday { limit = 23 * 60 + 30 }
         if kind.hasCandles, let candles = Zmanim(day: day).list.first(where: { $0.id == "candles" }) {
@@ -401,7 +406,8 @@ struct DayPlan {
         let calendar = Calendar.current
         let isToday: Bool = calendar.isDate(day, inSameDayAs: now)
         let kind: JewishDay = JewishDay.of(day)
-        let closing: Int = DayPlan.closing(day: day, kind: kind)
+        let isHoly: Bool = isToday ? Notifier.isHolyTime(now) : kind.isRest
+        let closing: Int = DayPlan.closing(day: day, kind: kind, isOut: !isHoly)
         let opening: Int = isToday ? ((ScheduleItem.minute(of: now) + 4) / 5) * 5 : DayPlan.opening
 
         var busy: [DaySpan] = []
@@ -424,7 +430,7 @@ struct DayPlan {
             blocks.append(DayBlock(id: event.id, span: span, title: event.title,
                                    artwork: Artwork(0x64748B, 0x334155), isDone: false))
         }
-        let free: [DaySpan] = kind.isRest ? [] : DayPlan.free(from: opening, to: closing, busy: busy)
+        let free: [DaySpan] = isHoly ? [] : DayPlan.free(from: opening, to: closing, busy: busy)
         let freeMinutes: Int = free.reduce(0) { $0 + $1.length }
 
         let factor: Double = DayJournal.factor
@@ -473,7 +479,7 @@ struct DayPlan {
             }
         }
 
-        return DayPlan(day: day, kind: kind, isToday: isToday, closing: closing, free: free,
+        return DayPlan(day: day, kind: kind, isToday: isToday, isHoly: isHoly, closing: closing, free: free,
                        freeMinutes: freeMinutes, roomMinutes: room, usualMinutes: usual,
                        tasks: placed, blocks: blocks.sorted { $0.span.start < $1.span.start },
                        plannedMinutes: planned, doneMinutes: done,
@@ -485,14 +491,14 @@ struct DayPlan {
     /// Whether the morning sitting is worth offering at this minute: a
     /// working day that was not built yet, with something to build it from.
     func offersPlanning(minute: Int, hasOpen: Bool) -> Bool {
-        !kind.isRest && load != .closed && !DayJournal.isPlannedToday && hasOpen
+        !isHoly && load != .closed && !DayJournal.isPlannedToday && hasOpen
             && (minute < 13 * 60 || tasks.isEmpty)
     }
 
     /// Whether the evening sitting is worth offering at this minute: from an
     /// hour and a half before the day closes, when there is something to look back on.
     func offersClosing(minute: Int, hasDone: Bool) -> Bool {
-        !kind.isRest && !DayJournal.isClosedToday && (minute >= closing - 90 || load == .closed)
+        !isHoly && !DayJournal.isClosedToday && (minute >= closing - 90 || load == .closed)
             && (hasDone || !tasks.isEmpty)
     }
 
@@ -505,8 +511,13 @@ struct DayPlan {
         let room: String = NowStatus.duration((roomMinutes / 5) * 5)
         switch load {
         case .rest:
-            let after: String = kind.isShabbat ? "שבת" : "החג"
-            return "\(kind.restName) היום. המטלות מחכות למוצאי \(after)."
+            // The rest that is on, and the last day of it: work waits for that one to be out.
+            let rest: JewishDay = kind.isRest ? kind : kind.next
+            var last: JewishDay = rest
+            for _ in 0..<3 where last.next.isRest { last = last.next }
+            let after: String = last.outName
+            if kind.isRest { return "\(rest.restName) היום. המטלות מחכות ל\(after)." }
+            return (rest.isShabbat ? "שבת נכנסה." : "החג נכנס.") + " המטלות מחכות ל\(after)."
         case .closed:
             return "יום העבודה נסגר. מה שנשאר עובר למחר."
         case .empty:
@@ -531,6 +542,19 @@ struct DayPlan {
         let asked: Int = plannedMinutes + doneMinutes
         guard Double(asked) > Double(usual) * 1.3 else { return nil }
         return "ביום רגיל אתם מסיימים כ־\(NowStatus.duration(usual)) של מטלות. להיום תוכננו \(NowStatus.duration(asked))."
+    }
+
+    /// The name next to "today": the day's own, and once a day of rest is
+    /// out, that of the evening after it.
+    var dayName: String? {
+        guard kind.isRest, !isHoly else { return kind.title }
+        return kind.outName
+    }
+
+    /// The name of the rest that is on: the day's own, or, from candle
+    /// lighting on its eve, that of the day that has come in.
+    var restTitle: String {
+        (kind.isRest ? kind : kind.next).title ?? "שבת קודש"
     }
 
     /// What closes the working day, when it is not simply the evening.

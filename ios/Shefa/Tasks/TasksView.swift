@@ -59,7 +59,7 @@ enum TaskRules {
     /// candles, and on the day itself nothing at all.
     static func freeSlot(minutes: Int, items: [ScheduleItem], now: Date = .now) -> Int? {
         let kind: JewishDay = JewishDay.of(now)
-        guard !kind.isRest else { return nil }
+        guard !Notifier.isHolyTime(now) else { return nil }
         var start = ((ScheduleItem.minute(of: now) + 9) / 5) * 5
         let limit: Int = kind.hasCandles ? DayPlan.closing(day: now, kind: kind) : 23 * 60 + 30
         for item in NowStatus.today(items, on: now) {

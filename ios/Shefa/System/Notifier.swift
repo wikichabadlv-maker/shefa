@@ -386,7 +386,11 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
             }
             if Thread.isMainThread { work() } else { DispatchQueue.main.sync(execute: work) }
         } else if response.actionIdentifier == "later" {
-            // The same reminder once more, ten minutes on.
+            // The same reminder once more, ten minutes on; never into Shabbat or a festival.
+            guard !Notifier.isHolyTime(Date.now.addingTimeInterval(600)) else {
+                completionHandler()
+                return
+            }
             let again = UNMutableNotificationContent()
             again.title = content.title
             again.body = content.body

@@ -66,24 +66,61 @@ struct JewishDay {
         if let fast { return fast }
         // A Friday keeps its own name next to whatever else the day is.
         let friday: String? = weekday == 6 && next.yomTov == nil ? "ערב שבת קודש" : nil
-        var name: String?
-        if isCholHamoed {
-            name = special ?? "חול המועד"
-        } else if let special {
-            name = isRoshChodesh ? special + " · ראש חודש" : special
-        } else if isRoshChodesh {
-            name = "ראש חודש"
-        } else if isEve, let coming = next.yomTov {
-            name = "ערב " + coming
-        }
+        let name: String? = ownName
         if let friday { return name.map { friday + " · " + $0 } ?? friday }
         return name
+    }
+
+    /// What a working day is called apart from its being a Friday.
+    private var ownName: String? {
+        if isCholHamoed { return special ?? "חול המועד" }
+        if let special { return isRoshChodesh ? special + " · ראש חודש" : special }
+        if isRoshChodesh { return "ראש חודש" }
+        if isEve, let coming = next.yomTov { return "ערב " + coming }
+        return nil
+    }
+
+    /// The name of the night that leads into this day, when it has one:
+    /// "ליל שבת קודש", "ליל י״ט כסלו · חג הגאולה". A fast that begins at
+    /// dawn gives the night before it no name.
+    var nightTitle: String? {
+        if isRest { return title.map { "ליל " + $0 } }
+        if let fast { return fast == "תשעה באב" ? "ליל תשעה באב" : nil }
+        return ownName.map { "ליל " + $0 }
+    }
+
+    /// The Hebrew side of a moment: the date as it is said then, and the
+    /// name of the day when it has one. Once the stars are out both belong
+    /// to the coming day: "אור לח׳ בכסלו".
+    static func moment(_ now: Date = .now) -> (date: String, name: String?) {
+        let times: [Zman] = Zmanim(day: now).list
+        guard let out = times.first(where: { $0.id == "tzeit" || $0.id == "shabbat-end" }), now >= out.date,
+              let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) else {
+            return (HebrewDate.text(now), JewishDay.of(now).title)
+        }
+        return ("אור ל" + HebrewDate.text(tomorrow), JewishDay.of(tomorrow).nightTitle)
     }
 
     /// A short word for the rest that is coming or is here.
     var restName: String {
         if let yomTov { return yomTov }
         return "שבת"
+    }
+
+    /// What is wished as this day of rest comes in: "שבת שלום", "חג שמח".
+    var greeting: String {
+        guard let yomTov else { return "שבת שלום" }
+        if fast != nil { return "גמר חתימה טובה" }
+        if yomTov == "ראש השנה" { return "כתיבה וחתימה טובה" }
+        return isShabbat ? "שבת שלום וחג שמח" : "חג שמח"
+    }
+
+    /// How the evening after this day of rest is called: "מוצאי שבת",
+    /// "מוצאי החג", and by their own names for the Days of Awe.
+    var outName: String {
+        if isShabbat { return "מוצאי שבת" }
+        if let yomTov, fast != nil || yomTov == "ראש השנה" { return "מוצאי " + yomTov }
+        return "מוצאי החג"
     }
 
     // MARK: Reading a date

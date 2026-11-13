@@ -10,6 +10,7 @@ struct ScheduleView: View {
     @State private var day = Calendar.current.startOfDay(for: .now)
     @State private var editing: ScheduleItem?
     @State private var draft: ScheduleDraft?
+    @State private var router = AppRouter.shared
 
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
 
@@ -87,6 +88,20 @@ struct ScheduleView: View {
                 try? await Task.sleep(for: .seconds(1.5))
                 proxy.scrollTo(Launch.anchor, anchor: .top)
             }
+            .onAppear { travel(with: proxy) }
+            .onChange(of: router.scheduleAnchor) { _, _ in travel(with: proxy) }
+        }
+    }
+
+    /// Another screen asked for a place on this one: once the tab has come
+    /// in, the screen travels there.
+    private func travel(with proxy: ScrollViewProxy) {
+        let place: String = router.scheduleAnchor
+        guard !place.isEmpty else { return }
+        router.scheduleAnchor = ""
+        Task {
+            try? await Task.sleep(for: .seconds(0.35))
+            withAnimation(.smooth(duration: 0.5)) { proxy.scrollTo(place, anchor: .top) }
         }
     }
 
@@ -366,9 +381,14 @@ struct SkyHeader: View {
 
     private var share: Double { zmanim.dayShare(at: now) }
 
+    /// The civil date leads, as everywhere in the app: "20 בנובמבר".
+    private var civil: String {
+        zmanim.day.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
+    }
+
     private var headline: (String, String) {
         guard isToday else {
-            return (HebrewDate.weekday(zmanim.day), HebrewDate.text(zmanim.day))
+            return (HebrewDate.weekday(zmanim.day), civil + " · " + HebrewDate.text(zmanim.day))
         }
         if let next = zmanim.next(after: now, mainOnly: true) {
             let minutes = max(Int(next.date.timeIntervalSince(now) / 60), 0)
@@ -386,10 +406,10 @@ struct SkyHeader: View {
         let name: String? = JewishDay.of(zmanim.day).title
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("\(HebrewDate.weekday(zmanim.day)) · \(HebrewDate.text(zmanim.day))")
+                Text("\(HebrewDate.weekday(zmanim.day)) · \(civil)")
                     .font(.system(size: 15, weight: .bold))
                 Spacer()
-                Text(zmanim.day.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide)))
+                Text(HebrewDate.text(zmanim.day))
                     .font(.system(size: 14, weight: .semibold))
                     .opacity(0.85)
             }

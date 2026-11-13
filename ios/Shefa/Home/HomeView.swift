@@ -150,6 +150,7 @@ struct HomeView: View {
         let areas = [
             Shortcut(id: "zmanim", title: "זמני היום", symbol: "sun.horizon.fill", artwork: Artwork(0x0EA5E9, 0x4F46E5)),
             Shortcut(id: "study", title: "חת״ת ורמב״ם", symbol: "book.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
+            Shortcut(id: "routines", title: "שגרות", symbol: "play.fill", artwork: Artwork(0xF59E0B, 0xDB2777)),
             Shortcut(id: "shopping", title: "קניות", symbol: "cart.fill", artwork: Theme.green),
             Shortcut(id: "books", title: "ספרים", symbol: "books.vertical.fill", artwork: Artwork(0x0891B2, 0x155E75)),
             Shortcut(id: "notes", title: "לזכור", symbol: "lightbulb.fill", artwork: Theme.amber),
@@ -164,6 +165,10 @@ struct HomeView: View {
                         if area.id == "shopping" {
                             router.tasksSection = .shopping
                             selection = .tasks
+                        } else if area.id == "routines" {
+                            // The shelf of routines is part of the schedule screen.
+                            router.scheduleAnchor = "routines"
+                            selection = .schedule
                         } else {
                             router.morePath = [area.id]
                             selection = .more
@@ -378,18 +383,16 @@ struct HomeView: View {
         }
     }
 
-    /// For example "יום חמישי · 12 בנובמבר · ב׳ בכסלו": the civil date
-    /// leads, and the Hebrew one follows it.
-    private static var dateLine: String {
-        let day = Date.now.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
-        return "\(HebrewDate.weekday()) · \(day) · \(HebrewDate.text())"
-    }
-
-    /// The date, and under it the name of the day when it has one.
+    /// The date, and under it the name of the day when it has one. For
+    /// example "יום חמישי · 12 בנובמבר · ב׳ בכסלו": the civil date leads and
+    /// the Hebrew one follows it, the coming day's once the stars are out.
     private var dateHeader: some View {
-        let name: String? = JewishDay.of().title
+        let hebrew: (date: String, name: String?) = JewishDay.moment()
+        let civil: String = Date.now.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
+        let line: String = "\(HebrewDate.weekday()) · \(civil) · \(hebrew.date)"
+        let name: String? = hebrew.name
         return VStack(alignment: .leading, spacing: 6) {
-            Text(Self.dateLine)
+            Text(line)
                 .font(.system(size: 13, weight: .heavy))
                 .foregroundStyle(Theme.accent)
             if let name {

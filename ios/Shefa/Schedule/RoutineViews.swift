@@ -342,6 +342,7 @@ struct RoutineEditor: View {
     }
 
     var body: some View {
+        let canAdd: Bool = !newStep.trimmingCharacters(in: .whitespaces).isEmpty
         let total: String = draft.steps.isEmpty
             ? "הוסיפו את הצעד הראשון. צעדים קצרים עובדים הכי טוב."
             : "סך הכול \(NowStatus.duration(draft.minutes)). החלקה על צעד מוחקת אותו, ולחיצה ארוכה מזיזה אותו."
@@ -363,6 +364,7 @@ struct RoutineEditor: View {
                                 length(step.minutes)
                             }
                         }
+                        .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     }
                     .onDelete { draft.steps.remove(atOffsets: $0) }
                     .onMove { draft.steps.move(fromOffsets: $0, toOffset: $1) }
@@ -382,11 +384,14 @@ struct RoutineEditor: View {
                         } label: {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 24))
+                                .foregroundStyle(Theme.accent)
+                                .opacity(canAdd ? 1 : 0.35)
                         }
                         .buttonStyle(.pressable)
-                        .disabled(newStep.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(!canAdd)
                         .accessibilityLabel("הוספת הצעד")
                     }
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                 } header: {
                     Text("הצעדים, לפי הסדר")
                 } footer: {
@@ -522,6 +527,12 @@ struct RoutinePlayer: View {
         }
         .environment(\.layoutDirection, .rightToLeft)
         .arrives()
+        .task {
+            // A test run finishes the last step by itself, to show the end.
+            guard Launch.screen == "routine-end" else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            finish(done: true)
+        }
     }
 
     // MARK: A step that is on
@@ -808,10 +819,13 @@ struct ErevCard: View {
                     note("הערב נר \(JewishDay.ordinal(candle)) של חנוכה. בערב שבת מדליקים אותו לפני נרות השבת.",
                          symbol: "flame.fill")
                 }
-                if store.forCandles == nil {
-                    offer
-                } else if !board.lines.isEmpty {
-                    list(board)
+                // Once the candles are lit nothing is left to prepare.
+                if board.untilCandles > 0 {
+                    if store.forCandles == nil {
+                        offer
+                    } else if !board.lines.isEmpty {
+                        list(board)
+                    }
                 }
             }
         }
@@ -845,7 +859,7 @@ struct ErevCard: View {
                     .opacity(0.94)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if total > 0 {
+            if total > 0, board.untilCandles > 0 {
                 GrowBar(share: share, height: 7, track: .white.opacity(0.25), fill: Color.white)
                     .animation(.smooth(duration: 0.4), value: share)
                     .padding(.top, 2)

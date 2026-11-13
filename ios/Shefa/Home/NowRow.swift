@@ -48,9 +48,9 @@ struct NowRow: View {
     private func tiles(now: Date) -> [Tile] {
         var result: [Tile] = []
         let minute: Int = ScheduleItem.minute(of: now)
-        let kind: JewishDay = JewishDay.of(now)
-        // Shabbat and the festivals ask for nothing here.
-        guard !kind.isRest else { return [] }
+        // Shabbat and the festivals ask for nothing here, from candle
+        // lighting until they are out.
+        guard !Notifier.isHolyTime(now) else { return [] }
         let open: [ListItem] = items.filter { !$0.isDone }
 
         if let routine = run.routine, let step = run.step {
@@ -118,9 +118,15 @@ struct NowRow: View {
         }
         let canPlan: Bool = plan.offersPlanning(minute: minute, hasOpen: !open.isEmpty)
         if canPlan {
-            result.append(Tile(id: "plan", kicker: minute < 12 * 60 ? "בוקר טוב" : "היום עוד פתוח",
-                               title: "בונים את היום", detail: "דקה אחת: מה נכנס היום, ומה הצעד הראשון.",
-                               symbol: "sun.max.fill", artwork: Theme.blue,
+            // After a day of rest is out, what is left to build is its evening.
+            let isOut: Bool = plan.kind.isRest
+            var kicker: String = minute < 12 * 60 ? "בוקר טוב" : "היום עוד פתוח"
+            if isOut { kicker = plan.kind.outName }
+            result.append(Tile(id: "plan", kicker: kicker,
+                               title: isOut ? "בונים את הערב" : "בונים את היום",
+                               detail: isOut ? "דקה אחת: מה נכנס הערב, ומה הצעד הראשון."
+                                   : "דקה אחת: מה נכנס היום, ומה הצעד הראשון.",
+                               symbol: isOut ? "moon.stars.fill" : "sun.max.fill", artwork: Theme.blue,
                                action: { router.isPlanningDay = true }))
         }
         if plan.offersClosing(minute: minute, hasDone: hasDone) {
