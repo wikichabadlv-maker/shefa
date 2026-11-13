@@ -1,6 +1,8 @@
 // Writes to the shared Supabase database through its REST API.
 // Uses the service key, which lives only in GitHub Secrets, never in the app.
 
+import { SafeError, errorCode } from './safe.js';
+
 export function makeStore(env = process.env, fetchImpl = fetch) {
   // Accept the address with or without the "/rest/v1" ending that the dashboard shows.
   const url = (env.SUPABASE_URL ?? '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
@@ -21,7 +23,11 @@ export function makeStore(env = process.env, fetchImpl = fetch) {
         },
         body: JSON.stringify(rows.slice(i, i + 500)),
       });
-      if (!res.ok) throw new Error(`Supabase ${table}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+      if (!res.ok) {
+        // The answer may quote the row that failed, so only its status and its code go on.
+        const code = errorCode(await res.text().catch(() => ''));
+        throw new SafeError(`Supabase ${table}: HTTP ${res.status}${code ? ` ${code}` : ''}`);
+      }
     }
   }
 

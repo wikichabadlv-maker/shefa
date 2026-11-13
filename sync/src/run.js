@@ -2,12 +2,24 @@ import { createRequire } from 'node:module';
 import { readAccounts } from './config.js';
 import { normalizeResult } from './normalize.js';
 import { makeStore } from './store.js';
+import { describeError } from './safe.js';
 
 const require = createRequire(import.meta.url);
 const { createScraper } = require('israeli-bank-scrapers');
 
 // Logs only counts, dates and error types: the repository's Actions log must never hold
-// passwords, account numbers or what was bought.
+// passwords, account numbers or what was bought. An error's own words are never printed,
+// since they may quote a page or a row: only its kind is.
+
+// Whatever escapes is described in the same careful way, and ends the run as it did before.
+process.on('uncaughtException', (err) => {
+  console.log(`❌ תקלה שלא נתפסה – ${describeError(err)}`);
+  process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+  console.log(`❌ תקלה שלא נתפסה – ${describeError(err)}`);
+  process.exit(1);
+});
 
 const days = Number(process.env.SYNC_DAYS) > 0 ? Number(process.env.SYNC_DAYS) : 45;
 const startDate = new Date(Date.now() - days * 864e5);
@@ -58,7 +70,7 @@ for (const account of accounts) {
     const generic = !run.error_type;
     run.error_type ??= 'GENERIC';
     console.log(`❌ ${account.label}: נכשל (${run.error_type})` +
-      (generic ? ` – ${String(err?.message ?? err).split('\n')[0].slice(0, 160)}` : ''));
+      (generic ? ` – ${describeError(err)}` : ''));
   }
   if (store) await store.saveRun(run).catch(() => console.log('⚠️  לא נשמר רישום הריצה'));
 }
