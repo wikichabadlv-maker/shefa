@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import SwiftData
 
 /// What one shared thing looks like in the family database.
@@ -31,6 +32,8 @@ struct SharedPayload: Codable {
     var todayDay: String?
     var onlyDay: String?
     var doneDays: String?
+    var log: String?
+    var occasion: String?
 }
 
 private struct SharedRow: Codable {
@@ -44,12 +47,15 @@ private struct SharedRow: Codable {
 /// Keeps tasks, shopping, budget limits and savings goals the same on both
 /// phones. The most recent change to each item wins.
 @MainActor
+@Observable
 final class SharedSync {
     static let shared = SharedSync()
 
-    private var pending: Task<Void, Never>?
-    private var isRunning = false
+    @ObservationIgnored private var pending: Task<Void, Never>?
+    @ObservationIgnored private var isRunning = false
     private(set) var lastError: String?
+    /// The last time the family database took and gave everything.
+    private(set) var lastGood: Date?
 
     private init() {}
 
@@ -115,6 +121,7 @@ final class SharedSync {
                     headers: ["Prefer": "resolution=merge-duplicates,return=minimal"])
             }
             lastError = nil
+            lastGood = .now
         } catch {
             lastError = error.localizedDescription
         }
@@ -207,19 +214,22 @@ final class SharedSync {
                     goal.symbol = row.data.symbol ?? goal.symbol
                     goal.palette = row.data.palette ?? goal.palette
                     goal.deadline = row.data.deadlineMs.map(Self.date)
+                    goal.log = row.data.log ?? goal.log
+                    goal.occasion = row.data.occasion ?? goal.occasion
                     goal.removed = false
                     goal.updatedAt = Self.date(row.updated_ms)
                 }
             case .deleteLocal:
                 context.delete(goal)
             case .upload:
-                outgoing.append(SharedRow(
-                    id: goal.id, kind: "goal",
-                    data: SharedPayload(title: goal.title, saved: Self.money(goal.saved),
-                                        target: Self.money(goal.target), symbol: goal.symbol,
-                                        palette: goal.palette, createdMs: Self.stamp(goal.createdAt),
-                                        deadlineMs: goal.deadline.map(Self.stamp)),
-                    deleted: goal.removed, updated_ms: Self.stamp(goal.updatedAt)))
+                var payload = SharedPayload(title: goal.title, saved: Self.money(goal.saved),
+                                            target: Self.money(goal.target), symbol: goal.symbol,
+                                            palette: goal.palette, createdMs: Self.stamp(goal.createdAt),
+                                            deadlineMs: goal.deadline.map(Self.stamp))
+                payload.log = goal.log
+                payload.occasion = goal.occasion
+                outgoing.append(SharedRow(id: goal.id, kind: "goal", data: payload,
+                                          deleted: goal.removed, updated_ms: Self.stamp(goal.updatedAt)))
             case .keep:
                 break
             }
@@ -231,6 +241,8 @@ final class SharedSync {
                 palette: row.data.palette ?? 0,
                 createdAt: row.data.createdMs.map(Self.date) ?? .now)
             goal.deadline = row.data.deadlineMs.map(Self.date)
+            goal.log = row.data.log ?? ""
+            goal.occasion = row.data.occasion ?? ""
             goal.updatedAt = Self.date(row.updated_ms)
             context.insert(goal)
         }

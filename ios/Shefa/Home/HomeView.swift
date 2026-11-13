@@ -381,28 +381,62 @@ struct HomeView: View {
     }
 }
 
-/// The vivid emerald card with what is left to live on this month.
+/// The app's main card: what is left to live on this month. Its color
+/// follows the month: emerald when all is well, amber when the money goes
+/// faster than the days, deep rose when the month went over. Never an alarm.
 struct MonthHeroCard: View {
     let month: MonthSummary
 
-    private var isOver: Bool { month.remaining < 0 }
+    private var mood: MonthSummary.Mood { Launch.mood ?? month.mood }
+
+    private var title: String {
+        if month.daysLeft <= 0 { return month.remaining < 0 ? "החודש נסגר בחריגה של" : "נשאר בסוף החודש" }
+        return mood == .over ? "חריגה מהמסגרת של החודש" : "נשאר לחיות ממנו החודש"
+    }
 
     private var subtitle: String {
         if month.daysLeft <= 0 { return "סיכום החודש" }
-        if isOver { return "עוד \(month.daysLeft) ימים עד סוף החודש" }
-        return "כ־\(Money.text(month.perWeek)) לשבוע · עוד \(month.daysLeft) ימים"
+        let days: String = MonthHeroCard.days(month.daysLeft)
+        switch mood {
+        case .over: return "עוד \(days) עד סוף החודש. שווה לדחות את מה שאפשר."
+        case .watch: return "הכסף הולך מהר מהימים. כ־\(Money.text(month.perDay)) ליום עד סוף החודש."
+        case .calm: return "כ־\(Money.text(month.perDay)) ליום · עוד \(days)"
+        }
+    }
+
+    private var badge: (text: String, symbol: String) {
+        switch mood {
+        case .over: return ("חריגה", "exclamationmark.circle.fill")
+        case .watch: return ("קצב מהיר", "hare.fill")
+        case .calm: return ("בקצב טוב", "checkmark.circle.fill")
+        }
+    }
+
+    private var incomeTitle: String {
+        if month.salary > 0 { return "משכורת הבית" }
+        return month.incomeIsEstimate ? "הכנסות (צפי)" : "הכנסות"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(isOver ? "חריגה מהתקציב לחיים החודש" : "נשאר לחיות ממנו החודש")
-                .font(.system(size: 15, weight: .semibold))
-                .opacity(0.9)
+            HStack(alignment: .top) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .opacity(0.9)
+                Spacer(minLength: 8)
+                if month.daysLeft > 0 {
+                    Label(badge.text, systemImage: badge.symbol)
+                        .font(.system(size: 12, weight: .heavy))
+                        .padding(.horizontal, 9)
+                        .frame(height: 24)
+                        .background(.white.opacity(0.2), in: Capsule())
+                }
+            }
 
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text("₪")
                     .font(.system(size: 28, weight: .bold))
-                CountUp(value: month.remaining.double) { Money.digits(Decimal($0.rounded())) }
+                CountUp(value: abs(month.remaining.double)) { Money.digits(Decimal($0.rounded())) }
                     .font(.system(size: 56, weight: .heavy))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
@@ -422,7 +456,7 @@ struct MonthHeroCard: View {
                 .padding(.top, 2)
 
             HStack(spacing: 0) {
-                stat(month.incomeIsEstimate ? "הכנסות (צפי)" : "הכנסות", Money.text(month.income))
+                stat(incomeTitle, Money.text(month.income))
                 Divider().overlay(.white.opacity(0.3)).frame(height: 28)
                 stat("קבועות", Money.text(month.fixed))
                 Divider().overlay(.white.opacity(0.3)).frame(height: 28)
@@ -435,11 +469,30 @@ struct MonthHeroCard: View {
         .foregroundStyle(.white)
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .livingCard(MonthHeroCard.artwork)
+        .livingCard(MonthHeroCard.artwork(mood))
+        .animation(.smooth(duration: 0.5), value: mood)
+        .accessibilityElement(children: .combine)
     }
 
     /// A livelier emerald than the theme's, for the app's main card.
-    static let artwork = Artwork(0x059669, 0x0F766E)
+    static let calm = Artwork(0x059669, 0x0F766E)
+
+    static func artwork(_ mood: MonthSummary.Mood) -> Artwork {
+        switch mood {
+        case .calm: return calm
+        case .watch: return Artwork(0xD97706, 0xB45309)
+        case .over: return Artwork(0xBE185D, 0x831843)
+        }
+    }
+
+    /// For example "יום אחד", "יומיים" or "17 ימים".
+    static func days(_ count: Int) -> String {
+        switch count {
+        case 1: return "יום אחד"
+        case 2: return "יומיים"
+        default: return "\(count) ימים"
+        }
+    }
 
     private func stat(_ title: String, _ value: String, color: Color = .white) -> some View {
         VStack(spacing: 1) {

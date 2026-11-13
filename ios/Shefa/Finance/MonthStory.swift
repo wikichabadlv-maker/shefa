@@ -59,8 +59,8 @@ struct MonthStory: View {
                 kicker: "\(name) עד עכשיו", number: abs(left.double),
                 title: left >= 0 ? "נשאר לחיות ממנו" : "חריגה מהמסגרת",
                 text: left >= 0
-                    ? "כ־\(Money.text(summary.perWeek)) לשבוע, ועוד \(summary.daysLeft) ימים עד סוף החודש."
-                    : "ההוצאות עברו את מה שהחודש יכול לשאת, ונשארו עוד \(summary.daysLeft) ימים."))
+                    ? "כ־\(Money.text(summary.perDay)) ליום, ועוד \(MonthHeroCard.days(summary.daysLeft)) עד סוף החודש."
+                    : "ההוצאות עברו את מה שהחודש יכול לשאת, ונשארו עוד \(MonthHeroCard.days(summary.daysLeft))."))
         } else if flow.income > 0 || flow.spent > 0 {
             let net: Decimal = flow.income - flow.spent
             result.append(Page(
@@ -148,8 +148,7 @@ struct MonthStory: View {
         }
 
         // 6. Maaser.
-        let rate: Decimal = UserDefaults.standard.bool(forKey: "givesChomesh") ? 2 : 1
-        let due: Decimal = summary.maaserDue * rate
+        let due: Decimal = summary.maaserDue
         let given: Decimal = summary.maaserGiven
         if due > 0 || given > 0 {
             let left: Decimal = max(due - given, 0)
@@ -157,7 +156,8 @@ struct MonthStory: View {
                 id: "maaser", artwork: Theme.amber, symbol: "heart.fill",
                 kicker: "מעשר וצדקה", number: given.double,
                 title: left > 0 ? "ניתן עד עכשיו" : "ניתן במלואו",
-                text: left > 0 ? "מתוך \(Money.text(due)). נותרו \(Money.text(left))." : "כל מה שהחודש חייב כבר ניתן.",
+                text: left > 0 ? "מתוך \(Money.text(due)). עוד \(Money.text(left)) ממתינים לנתינה."
+                    : (due > 0 ? "מעשר ההכנסות של החודש ניתן כולו." : ""),
                 share: due > 0 ? min((given / due).double, 1) : 1))
         }
 
@@ -176,7 +176,7 @@ struct MonthStory: View {
         if isCurrent, summary.remaining < 0 {
             step = "הצעד הבא: לעצור את ההוצאות שאפשר לדחות עד סוף החודש, או להחליט מאיפה מכסים את החריגה."
         } else if isCurrent, maaserLeft > 0 {
-            step = "הצעד הבא: \(Money.text(maaserLeft)) למעשר, והחודש סגור מהצד הזה."
+            step = "הצעד הבא: \(Money.text(maaserLeft)) ממתינים לנתינה, והחודש סגור מהצד הזה."
         } else if !isCurrent, flow.spent > flow.income, flow.income > 0 {
             step = "יצא יותר ממה שנכנס. שווה לבדוק איזו קבוצה גדלה, ולקבוע לה תקציב."
         }

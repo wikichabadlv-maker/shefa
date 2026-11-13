@@ -325,7 +325,7 @@ struct FlowBar: View {
     }
 
     private var parts: [Part] {
-        let maaser = max(summary.maaserDue, summary.maaserGiven)
+        let maaser = summary.maaserInPlan
         let spent = summary.variableSpent + summary.onceSpent
         let left = max(summary.remaining, 0)
         return [

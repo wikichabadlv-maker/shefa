@@ -98,6 +98,27 @@ final class Backend {
         let date: String
         let amount: Double
         let description: String
+        let processed_date: String?
+        let status: String?
+        let installment_number: Int?
+        let installment_total: Int?
+        let memo: String?
+        let account: String?
+    }
+
+    private struct BalanceRow: Decodable {
+        let source: String
+        let account: String?
+        let balance: Double
+        let as_of: String
+    }
+
+    private struct RunRow: Decodable {
+        let source: String
+        let ran_at: String
+        let ok: Bool
+        let error_type: String?
+        let count: Int?
     }
 
     private struct DetailRow: Decodable {
@@ -114,7 +135,7 @@ final class Backend {
         do {
             let token = try await validToken()
             let rowsData = try await send("rest/v1/bank_transactions", query: [
-                URLQueryItem(name: "select", value: "id,company,date,amount,description"),
+                URLQueryItem(name: "select", value: Self.rowFields),
                 URLQueryItem(name: "order", value: "date.desc"),
                 URLQueryItem(name: "limit", value: "2000"),
             ], token: token)
@@ -126,9 +147,50 @@ final class Backend {
             try merge(rows: rows, details: details, into: context)
             lastSync = .now
             lastError = nil
+            await pullBankState(token: token)
             await SharedSync.shared.run(in: context)
         } catch {
             lastError = error.localizedDescription
+        }
+    }
+
+    private static let rowFields =
+        "id,company,date,amount,description,processed_date,status,installment_number,installment_total,memo,account"
+
+    /// The account balances and the health of each bank source, as the sync
+    /// engine last wrote them. The journal is complete without them, so a
+    /// failure here is not a failed sync.
+    private func pullBankState(token: String) async {
+        do {
+            let balancesData = try await send("rest/v1/account_balances", query: [
+                URLQueryItem(name: "select", value: "source,account,balance,as_of"),
+                URLQueryItem(name: "order", value: "as_of.desc"),
+                URLQueryItem(name: "limit", value: "300"),
+            ], token: token)
+            let runsData = try await send("rest/v1/sync_runs", query: [
+                URLQueryItem(name: "select", value: "source,ran_at,ok,error_type,count"),
+                URLQueryItem(name: "order", value: "ran_at.desc"),
+                URLQueryItem(name: "limit", value: "80"),
+            ], token: token)
+            let balanceRows = try JSONDecoder().decode([BalanceRow].self, from: balancesData)
+            let runRows = try JSONDecoder().decode([RunRow].self, from: runsData)
+            var balances: [BankState.Balance] = []
+            for row in balanceRows {
+                guard let time = BankState.time(row.as_of) else { continue }
+                balances.append(BankState.Balance(
+                    source: Self.companyName(row.source), account: row.account ?? "",
+                    amount: row.balance, asOf: time))
+            }
+            var runs: [BankState.Run] = []
+            for row in runRows {
+                guard let time = BankState.time(row.ran_at) else { continue }
+                runs.append(BankState.Run(
+                    source: Self.companyName(row.source), ranAt: time, ok: row.ok,
+                    errorType: row.error_type, count: row.count ?? 0))
+            }
+            BankState.shared.update(balances: balances, runs: runs)
+        } catch {
+            // Keeps what was known before.
         }
     }
 
@@ -155,6 +217,9 @@ final class Backend {
         dayFormat.timeZone = TimeZone(identifier: "Asia/Jerusalem")
         dayFormat.dateFormat = "yyyy-MM-dd HH:mm"
 
+        // The card companies whose purchases arrive line by line.
+        let linkedCards = Set(rows.map { Self.companyName($0.company) }).intersection(Forecast.cardSources)
+
         for row in rows {
             let amount = Decimal(string: String(format: "%.2f", row.amount)) ?? 0
             let entry: LedgerEntry
@@ -173,6 +238,15 @@ final class Backend {
                 isNew = true
             }
 
+            let isBank = !Forecast.cardSources.contains(Self.companyName(row.company))
+            let charge: Date? = row.processed_date.flatMap { dayFormat.date(from: "\($0) 12:00") }
+            if entry.chargeDate != charge { entry.chargeDate = charge }
+            if entry.installment != (row.installment_number ?? 0) { entry.installment = row.installment_number ?? 0 }
+            if entry.installments != (row.installment_total ?? 0) { entry.installments = row.installment_total ?? 0 }
+            if entry.pending != (row.status == "pending") { entry.pending = row.status == "pending" }
+            if entry.memo != row.memo { entry.memo = row.memo }
+            if entry.account != row.account { entry.account = row.account }
+
             if let answer = answers[row.id] {
                 entry.categoryID = answer.category
                 entry.subID = answer.sub_category
@@ -187,18 +261,28 @@ final class Backend {
                     entry.subID = rule.subID
                     entry.subTitle = rule.subTitle
                 } else if let guess = Classifier.guess(
-                    title: row.description, amount: amount, isBankAccount: row.company == "discount") {
+                    title: row.description, amount: amount, isBankAccount: isBank, linkedCards: linkedCards) {
                     entry.categoryID = guess.categoryID
                     entry.subID = guess.sub?.id
-                    entry.subTitle = guess.sub?.title
+                    entry.subTitle = guess.title ?? guess.sub?.title
                 }
-            } else if entry.subID == nil, !isNew,
+            } else if isBank, amount < 0, rules[Ledger.merchantKey(row.description)] == nil,
+                      entry.categoryID == SpendCategory.transferID || entry.subTitle == Classifier.unlinkedBill,
                       let guess = Classifier.guess(
-                        title: row.description, amount: amount, isBankAccount: row.company == "discount"),
+                        title: row.description, amount: amount, isBankAccount: true, linkedCards: linkedCards),
+                      guess.categoryID != entry.categoryID {
+                // A card's monthly bill counts as spending for as long as
+                // the card itself is not connected, and stops when it is.
+                entry.categoryID = guess.categoryID
+                entry.subID = guess.sub?.id
+                entry.subTitle = guess.title ?? guess.sub?.title
+            } else if entry.subID == nil, !isNew, entry.subTitle == nil,
+                      let guess = Classifier.guess(
+                        title: row.description, amount: amount, isBankAccount: isBank, linkedCards: linkedCards),
                       guess.categoryID == entry.categoryID {
                 // A line classified by an older version gets its sub-category now.
                 entry.subID = guess.sub?.id
-                entry.subTitle = guess.sub?.title
+                entry.subTitle = guess.title ?? guess.sub?.title
             }
             guard isNew else { continue }
             context.insert(entry)
@@ -207,13 +291,18 @@ final class Backend {
         try context.save()
     }
 
-    private static func companyName(_ company: String) -> String {
-        switch company {
-        case "discount": return "דיסקונט"
-        case "max": return "מקס"
-        case "visaCal": return "כאל"
+    /// The Hebrew name of a bank source. A second account at the same
+    /// company arrives as "max_2" and is named "מקס 2".
+    nonisolated static func companyName(_ company: String) -> String {
+        let parts = company.split(separator: "_", maxSplits: 1)
+        let name: String
+        switch parts.first.map(String.init) ?? "" {
+        case "discount": name = "דיסקונט"
+        case "max": name = "מקס"
+        case "visaCal": name = "כאל"
         default: return company
         }
+        return parts.count > 1 ? "\(name) \(parts[1])" : name
     }
 
     /// Saves what the family said about a bank line, so both phones see it.

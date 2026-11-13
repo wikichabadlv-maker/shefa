@@ -289,13 +289,16 @@ struct TransactionRow: View {
     }
 }
 
-/// The gold card that tracks maaser for the month.
+/// The gold card of maaser for the month: tzedakah money that is held and
+/// waits to be given. It is never worded as a debt.
 struct MaaserCard: View {
     let month: MonthSummary
     /// Which month is shown, so that moving between months is not mistaken
     /// for a gift.
     var monthKey = ""
-    @AppStorage("givesChomesh") private var isChomesh = false
+    /// Income that waits for a rav's answer and is not counted meanwhile.
+    var waiting: Decimal = 0
+    @State private var plan = FinancePlan.shared
 
     private struct Standing: Equatable {
         let month: String
@@ -303,39 +306,61 @@ struct MaaserCard: View {
         let isPaid: Bool
     }
 
-    private var due: Decimal { isChomesh ? month.maaserDue * 2 : month.maaserDue }
+    private var due: Decimal { month.maaserDue }
     private var remaining: Decimal { max(due - month.maaserGiven, 0) }
     private var share: Double {
         guard due > 0 else { return 0 }
         return min(NSDecimalNumber(decimal: month.maaserGiven / due).doubleValue, 1)
     }
 
+    private var rate: Binding<Bool> {
+        Binding(get: { plan.isChomesh }, set: { plan.setChomesh($0) })
+    }
+
     var body: some View {
+        let isChomesh: Bool = plan.isChomesh
+        let recordOnly: Bool = plan.recordOnly
+        let name: String = isChomesh ? "חומש" : "מעשר"
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("נותר לתת החודש")
+                Text(recordOnly ? "ניתן החודש" : (due > 0 && remaining <= 0 ? "ניתן במלואו" : "ממתין לנתינה"))
                     .font(.system(size: 15, weight: .semibold))
                 Spacer()
-                Picker("שיעור", selection: $isChomesh) {
-                    Text("מעשר 10%").tag(false)
-                    Text("חומש 20%").tag(true)
+                if !recordOnly {
+                    Picker("שיעור", selection: rate) {
+                        Text("מעשר 10%").tag(false)
+                        Text("חומש 20%").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 190)
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 190)
             }
-            BigMoney(value: remaining.double, size: 54)
-            GrowBar(share: share, height: 8, track: .white.opacity(0.25), fill: Color.white)
-            HStack {
-                Text("ניתן \(Money.text(month.maaserGiven))")
-                Spacer()
-                Text("חובה \(Money.text(due))")
+            BigMoney(value: (recordOnly ? month.maaserGiven : remaining).double, size: 54)
+            if !recordOnly {
+                GrowBar(share: share, height: 8, track: .white.opacity(0.25), fill: Color.white)
+                HStack {
+                    Text("ניתן \(Money.text(month.maaserGiven))")
+                    Spacer()
+                    Text("\(name) ממה שנכנס: \(Money.text(due))")
+                }
+                .font(.system(size: 13, weight: .semibold))
+                if month.daysLeft > 0, month.maaserReserve > due {
+                    Text("מחודש מלא, לפי התוכנית: \(Money.text(month.maaserReserve))")
+                        .font(.system(size: 12, weight: .medium))
+                        .opacity(0.85)
+                }
             }
-            .font(.system(size: 13, weight: .semibold))
+            if waiting > 0 {
+                Label("\(Money.text(waiting)) שנכנסו מחכים לתשובת רב, ולא נכללו בינתיים", systemImage: "questionmark.circle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .opacity(0.92)
+            }
         }
         .foregroundStyle(.white)
         .padding(20)
         .livingCard(Theme.amber, seed: 0.9)
         .animation(.snappy, value: isChomesh)
+        .animation(.snappy, value: recordOnly)
         .onChange(of: Standing(month: monthKey, isChomesh: isChomesh, isPaid: due > 0 && remaining <= 0)) { old, new in
             guard new.isPaid, !old.isPaid, old.month == new.month, old.isChomesh == new.isChomesh else { return }
             // The gift is usually entered in a sheet, which is still closing.

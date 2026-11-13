@@ -6,6 +6,8 @@ enum Classifier {
     struct Guess {
         let categoryID: String
         let sub: SubCategory?
+        /// A name for the line when no built-in sub-category fits.
+        var title: String? = nil
     }
 
     /// Lines in the bank account that only move money to a card company.
@@ -15,6 +17,30 @@ enum Classifier {
         "כאל", "כ.א.ל", "מקס איט", "מקס", "ויזה", "ישראכרט", "לאומי קארד",
         "אמריקן אקספרס", "דיינרס", "כרטיסי אשראי", "כרטיס אשראי",
     ]
+
+    /// Which card company a bank line pays, by words in its description.
+    private static let cardCompanies: [(name: String, words: [String])] = [
+        ("כאל", ["כאל", "כ.א.ל", "דיינרס"]),
+        ("מקס", ["מקס", "לאומי קארד"]),
+        ("ישראכרט", ["ישראכרט"]),
+        ("אמריקן אקספרס", ["אמריקן אקספרס"]),
+    ]
+
+    /// How the monthly bill of a card that is not connected is named. Its
+    /// purchases never arrive line by line, so the bill itself is the expense.
+    static let unlinkedBill = "חיוב כרטיס שאינו מחובר"
+
+    /// The card company a bank line pays, if its description names one.
+    static func cardCompany(in title: String) -> String? {
+        let text = title.lowercased() + " "
+        return cardCompanies.first { $0.words.contains(where: { text.contains($0) }) }?.name
+    }
+
+    /// True for a bank line that pays a card company's monthly bill.
+    static func isCardBill(_ title: String) -> Bool {
+        let text = title.lowercased() + " "
+        return cardCharges.contains(where: { text.contains($0) })
+    }
 
     /// Checked in order; the first match wins, so specific words come first.
     private static let keywords: [(sub: String?, group: String, words: [String])] = [
@@ -66,10 +92,20 @@ enum Classifier {
 
     /// - Parameters:
     ///   - isBankAccount: `true` for lines from the bank itself rather than a card.
-    static func guess(title: String, amount: Decimal, isBankAccount: Bool) -> Guess? {
+    ///   - linkedCards: the card companies whose purchases arrive line by line.
+    static func guess(title: String, amount: Decimal, isBankAccount: Bool,
+                      linkedCards: Set<String> = []) -> Guess? {
         let text = title.lowercased() + " "
         if isBankAccount && amount < 0 && cardCharges.contains(where: { text.contains($0) }) {
-            return Guess(categoryID: SpendCategory.transferID, sub: nil)
+            // The bill of a connected card only moves money; its purchases
+            // are already counted one by one. A description that names no
+            // company is taken to be a connected card when there is one.
+            let company: String? = cardCompany(in: title)
+            let isLinked: Bool = company.map { linkedCards.contains($0) } ?? !linkedCards.isEmpty
+            if isLinked {
+                return Guess(categoryID: SpendCategory.transferID, sub: nil)
+            }
+            return Guess(categoryID: "other", sub: nil, title: unlinkedBill)
         }
         if amount > 0 {
             let match = incomeWords.first { $0.words.contains(where: { text.contains($0) }) }

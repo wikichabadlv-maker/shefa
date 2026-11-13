@@ -20,12 +20,21 @@ enum Launch {
 
     static var financeSection: FinanceSection {
         switch screen {
-        case "finance-overview": return .overview
-        case "finance-budget": return .budget
-        case "finance-maaser": return .maaser
-        case "finance-savings", "finance-goal": return .savings
-        case "finance-entry": return .transactions
-        default: return screen == "finance-transactions" ? .transactions : .overview
+        case "finance-budget", "finance-budget-edit": return .budget
+        case "finance-maaser", "finance-rules": return .maaser
+        case "finance-savings", "finance-goal", "finance-fund": return .savings
+        case "finance-transactions", "finance-entry", "finance-review": return .transactions
+        default: return .overview
+        }
+    }
+
+    /// Paints the month card in one of its moods, for a test run: "watch" or "over".
+    static var mood: MonthSummary.Mood? {
+        switch UserDefaults.standard.string(forKey: "mood") ?? "" {
+        case "watch": return .watch
+        case "over": return .over
+        case "calm": return .calm
+        default: return nil
         }
     }
 

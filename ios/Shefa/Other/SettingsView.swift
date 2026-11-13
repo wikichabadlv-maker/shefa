@@ -32,7 +32,7 @@ struct SettingsView: View {
         }
     }
     @AppStorage("appearance") private var appearance = "system"
-    @AppStorage("givesChomesh") private var givesChomesh = false
+    @State private var plan = FinancePlan.shared
 
     private var version: String {
         let info = Bundle.main.infoDictionary
@@ -196,7 +196,8 @@ struct SettingsView: View {
             }
 
             Section("כספים") {
-                Toggle("נותנים חומש (20%) במקום מעשר", isOn: $givesChomesh)
+                Toggle("נותנים חומש (20%) במקום מעשר",
+                       isOn: Binding(get: { plan.isChomesh }, set: { plan.setChomesh($0) }))
             }
 
             Section("מראה") {

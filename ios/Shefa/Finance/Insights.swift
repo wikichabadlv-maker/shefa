@@ -136,7 +136,7 @@ enum Insights {
             let left = max(summary.maaserDue - summary.maaserGiven, 0)
             result.append(Insight(
                 id: "maaser", symbol: "heart.fill",
-                title: left > 0 ? "נותרו \(Money.text(left)) למעשר" : "המעשר החודש הושלם",
+                title: left > 0 ? "\(Money.text(left)) ממתינים לנתינה" : "המעשר של החודש ניתן",
                 text: "ניתנו \(Money.text(summary.maaserGiven)) מתוך \(Money.text(summary.maaserDue))",
                 artwork: Theme.amber, categoryID: SpendCategory.maaserID))
         }

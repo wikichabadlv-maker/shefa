@@ -6,6 +6,9 @@ import SwiftData
 /// from the family's own records.
 enum DemoData {
     static func fill(_ context: ModelContext) {
+        // Kept in memory only, so every demo launch sets them again.
+        FinancePlan.shared.fillDemo()
+        BankState.shared.fillDemo()
         let existing = (try? context.fetchCount(FetchDescriptor<ListItem>())) ?? 0
         guard existing == 0 else { return }
 
@@ -66,10 +69,25 @@ enum DemoData {
 
         let fund = SavingsGoal(id: SavingsGoal.emergencyID, title: "קרן חירום", saved: 6500, target: 24000,
                                symbol: "umbrella.fill", palette: 3)
+        for (back, amount) in [(3, 500), (2, 400), (1, 600), (0, 300)] {
+            fund.record(Decimal(amount), on: Calendar.current.date(byAdding: .month, value: -back, to: .now) ?? .now)
+        }
         context.insert(fund)
         let trip = SavingsGoal(title: "חופשה בצפון", saved: 1200, target: 4000, symbol: "airplane", palette: 2)
         trip.deadline = Calendar.current.date(byAdding: .month, value: 7, to: .now)
+        for (back, amount) in [(2, 350), (1, 450), (0, 400)] {
+            trip.record(Decimal(amount), on: Calendar.current.date(byAdding: .month, value: -back, to: .now) ?? .now)
+        }
         context.insert(trip)
+        if let pesach = Occasion.find("pesach") {
+            let holiday = SavingsGoal(title: pesach.fund, saved: 900, target: 2400, symbol: pesach.symbol,
+                                      palette: pesach.palette)
+            holiday.occasion = pesach.id
+            holiday.deadline = pesach.deadline()
+            holiday.record(450, on: Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now)
+            holiday.record(450)
+            context.insert(holiday)
+        }
 
         let lines: [(String, String, String?, Int)] = [
             ("ירקות בשוק", "-86", "food", 1),
@@ -85,7 +103,77 @@ enum DemoData {
                 amount: Decimal(string: line.1) ?? 0, source: "מזומן", categoryID: line.2))
         }
         fillHistory(context)
+        fillBank(context)
         try? context.save()
+    }
+
+    /// Made-up bank and card lines on real days, for this month and the two
+    /// before it, so that the forecast has payments that return, a card bill
+    /// on its way, a purchase in payments and a few lines to sort.
+    private static func fillBank(_ context: ModelContext) {
+        let calendar = Calendar.current
+        let today: Date = calendar.startOfDay(for: .now)
+        let noon: TimeInterval = 12 * 3600
+        let monthly: [(Int, String, Int, String, String?)] = [
+            (1, "משכורת שנייה", 6400, "income", "income.spouse"),
+            (2, "שכר דירה", -4200, "home", "home.rent"),
+            (5, "ארנונה", -420, "home", "home.arnona"),
+            (9, "משכורת", 9800, "income", "income.salary"),
+            (10, "כאל", -4650, "transfer", nil),
+            (15, "קופת חולים", -210, "health", "health.kupah"),
+            (20, "חוגים", -450, "kids", "kids.classes"),
+        ]
+        for back in 0...2 {
+            for (index, line) in monthly.enumerated() {
+                let date: Date = Forecast.day(line.0, inMonthOf: today, shift: -back)
+                guard date <= today else { continue }
+                let entry = LedgerEntry(
+                    id: "demo-bank-\(back)-\(index)", date: date.addingTimeInterval(noon), title: line.1,
+                    amount: Decimal(line.2), source: "דיסקונט", categoryID: line.3, sub: SubCategory.find(line.4))
+                entry.account = "4821"
+                context.insert(entry)
+            }
+        }
+
+        // The card charges the bank on the 10th for what was bought up to the 8th.
+        func charge(for purchase: Date) -> Date {
+            let isEarly: Bool = calendar.component(.day, from: purchase) <= 8
+            return Forecast.day(10, inMonthOf: purchase, shift: isEarly ? 0 : 1).addingTimeInterval(noon)
+        }
+        let purchases: [(Int, String, String, String?, String?)] = [
+            (1, "רמי לוי", "-412.30", "food", "food.groceries"),
+            (1, "חנות הפינה", "-74", nil, nil),
+            (2, "פז", "-260", "transport", "transport.fuel"),
+            (3, "סופר פארם", "-128.90", "food", "food.pharm"),
+            (3, "א.ב. שירותים", "-230", nil, nil),
+            (5, "קסטרו", "-240", "clothing", "clothing.clothes"),
+            (6, "וולט", "-96", "gift", "gift.restaurants"),
+            (6, "PAYBOX", "-60", nil, nil),
+        ]
+        for (index, line) in purchases.enumerated() {
+            let date: Date = (calendar.date(byAdding: .day, value: -line.0, to: today) ?? today).addingTimeInterval(noon)
+            let entry = LedgerEntry(
+                id: "demo-card-\(index)", date: date, title: line.1, amount: Decimal(string: line.2) ?? 0,
+                source: "כאל", categoryID: line.3, sub: SubCategory.find(line.4))
+            entry.chargeDate = charge(for: date)
+            entry.account = "7302"
+            context.insert(entry)
+        }
+        let fridgeDay: Date = (calendar.date(byAdding: .day, value: -4, to: today) ?? today).addingTimeInterval(noon)
+        let fridge = LedgerEntry(id: "demo-card-payments", date: fridgeDay, title: "מחסני חשמל", amount: -350,
+                                 source: "כאל", categoryID: "home", sub: SubCategory.find("home.furniture"))
+        fridge.installment = 3
+        fridge.installments = 10
+        fridge.chargeDate = charge(for: fridgeDay)
+        fridge.account = "7302"
+        context.insert(fridge)
+        let waiting = LedgerEntry(id: "demo-card-pending", date: today.addingTimeInterval(noon), title: "יוחננוף",
+                                  amount: Decimal(string: "-187.40") ?? 0, source: "כאל", categoryID: "food",
+                                  sub: SubCategory.find("food.groceries"))
+        waiting.pending = true
+        waiting.chargeDate = today.addingTimeInterval(noon)
+        waiting.account = "7302"
+        context.insert(waiting)
     }
 
     /// Made-up monthly summaries for the half year before this month, in the
@@ -94,6 +182,7 @@ enum DemoData {
     private static func fillHistory(_ context: ModelContext) {
         let lines: [(String, String, Int, Bool)] = [
             ("income.salary", "משכורת", 9800, true), ("income.spouse", "משכורת שנייה", 6400, true),
+            ("income.rentaid", "סיוע בשכר דירה", 900, true), ("income.business", "הכנסה מעסק", 2400, false),
             ("home.rent", "שכר דירה", -4200, true), ("home.arnona", "ארנונה", -420, true),
             ("home.electric", "חשמל", -380, false), ("home.mobile", "סלולר", -120, true),
             ("food.groceries", "סופר ומכולת", -2600, false), ("transport.fuel", "דלק", -520, false),
@@ -112,7 +201,9 @@ enum DemoData {
         for back in 1...6 {
             guard let date = calendar.date(byAdding: .month, value: -back, to: middle) else { continue }
             for (index, line) in lines.enumerated() {
-                let share: Double = line.3 ? 1 : wobble[(back + index) % wobble.count]
+                var share: Double = line.3 ? 1 : wobble[(back + index) % wobble.count]
+                // Income from a business moves much more than the bills do.
+                if line.0 == "income.business" { share = [0.4, 1.3, 0.8, 1.6, 0.5, 1.0][back % 6] }
                 let amount: Int = Int((Double(line.2) * share).rounded())
                 let group: String = String(line.0.prefix { $0 != "." })
                 context.insert(LedgerEntry(
@@ -120,6 +211,12 @@ enum DemoData {
                     amount: Decimal(amount), source: ExcelImport.source, categoryID: group,
                     sub: SubCategory.find(line.0)))
             }
+        }
+        // One heavy month, the kind a festival fund is for.
+        if let heavy = calendar.date(byAdding: .month, value: -3, to: middle) {
+            context.insert(LedgerEntry(
+                id: "demo-history-heavy", date: heavy, title: "ריהוט ומוצרי חשמל", amount: -11800,
+                source: ExcelImport.source, categoryID: "home", sub: SubCategory.find("home.furniture")))
         }
     }
 }

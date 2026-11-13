@@ -65,7 +65,7 @@ final class Backup {
         "doneTasksByDay", "addedDefaultHabits", "addedMikveh", "deviceLatitude", "deviceLongitude", "deviceName",
         "appearance", "givesChomesh", City.storageKey, Feedback.soundsKey, Coach.enabledKey,
         Notifier.scheduleKey, Notifier.tasksKey, Notifier.shmaKey, Notifier.candlesKey, Notifier.sunsetKey,
-    ]
+    ] + FinancePlan.keys
 
     private init() {}
 
@@ -157,6 +157,7 @@ final class Backup {
             context.insert(sub)
         }
         try? context.save()
+        FinancePlan.shared.load()
     }
 
     // MARK: Cloud

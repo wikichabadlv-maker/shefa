@@ -15,14 +15,30 @@ struct MonthSummary {
     let onceSpent: Decimal
     let saved: Decimal
     let maaserGiven: Decimal
+    /// The maaser of the income that has actually arrived.
     let maaserDue: Decimal
+    /// The maaser the month's plan keeps aside: that of the whole income the
+    /// month is planned on.
+    let maaserReserve: Decimal
     let daysLeft: Int
+    /// The house salary, when the family set one and this is the current month.
+    let salary: Decimal
+    /// How much of the month has passed, from 0 to 1.
+    let passed: Double
 
     var incomeIsEstimate: Bool { income > incomeSoFar }
 
+    /// What arrived above the house salary. It stays in the bank as a
+    /// cushion for leaner months and is not part of the month's plan.
+    var surplus: Decimal { salary > 0 ? max(incomeSoFar - salary, 0) : 0 }
+
+    /// Maaser as the month's plan carries it. Giving out of income above the
+    /// house salary is not charged to the plan.
+    var maaserInPlan: Decimal { max(maaserReserve, maaserGiven - surplus) }
+
     /// What the month leaves for everyday life after fixed costs, maaser and savings.
     var livingBudget: Decimal {
-        income - fixed - max(maaserDue, maaserGiven) - saved
+        income - fixed - maaserInPlan - saved
     }
 
     /// What is still free to spend this month.
@@ -31,6 +47,17 @@ struct MonthSummary {
     var perWeek: Decimal {
         let weeks = max(1, Int((Double(daysLeft) / 7).rounded(.up)))
         return max(remaining, 0) / Decimal(weeks)
+    }
+
+    var perDay: Decimal { max(remaining, 0) / Decimal(max(daysLeft, 1)) }
+
+    /// How the month stands, in one of three plain states.
+    enum Mood { case calm, watch, over }
+
+    var mood: Mood {
+        if remaining < 0 { return .over }
+        guard daysLeft > 0, livingBudget > 0, passed > 0.1 else { return .calm }
+        return spentShare > passed + 0.15 ? .watch : .calm
     }
 
     var totalSpent: Decimal { fixedPaid + variableSpent + onceSpent + maaserGiven }
@@ -126,6 +153,7 @@ enum Ledger {
 
         var income = current.income
         var fixed = current.fixed
+        var salary = Decimal(0)
         if isCurrentMonth {
             // Compare with up to three earlier months that have any activity.
             var earlier: [MonthTotals] = []
@@ -139,14 +167,52 @@ enum Ledger {
                 income = max(income, earlier.reduce(Decimal(0)) { $0 + $1.income } / count)
                 fixed = max(fixed, earlier.reduce(Decimal(0)) { $0 + $1.fixed } / count)
             }
+            // A house salary keeps the month's plan steady whatever arrives.
+            salary = FinancePlan.shared.salary
+            if salary > 0 { income = salary }
+        }
+
+        let book = MaaserBook()
+        let lines = inMonth(entries, now)
+        let due: Decimal = book.due(lines)
+        var reserve: Decimal = due
+        if isCurrentMonth, !book.recordOnly {
+            // The plan keeps aside the maaser of the whole planned income,
+            // in the proportion that this family's income counts for maaser.
+            let share: Decimal = current.income > 0 ? book.base(lines) / current.income : 1
+            reserve = income * share * book.rate
         }
 
         let daysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 30
-        let daysLeft = isCurrentMonth ? daysInMonth - calendar.component(.day, from: .now) + 1 : 0
+        let today = calendar.component(.day, from: .now)
+        let daysLeft = isCurrentMonth ? daysInMonth - today + 1 : 0
         return MonthSummary(
             income: income, incomeSoFar: current.income, fixed: fixed, fixedPaid: current.fixed,
             variableSpent: current.variable, onceSpent: current.once, saved: current.saved,
-            maaserGiven: current.maaser, maaserDue: income / 10, daysLeft: daysLeft)
+            maaserGiven: current.maaser, maaserDue: due, maaserReserve: reserve, daysLeft: daysLeft,
+            salary: salary, passed: isCurrentMonth ? Double(today) / Double(daysInMonth) : 1)
+    }
+
+    /// What came in during each of the months before this one, the nearest
+    /// first, skipping months with no income on record.
+    static func incomeHistory(_ entries: [LedgerEntry], before month: Date = .now,
+                              count: Int = 12) -> [(month: Date, income: Decimal)] {
+        var result: [(month: Date, income: Decimal)] = []
+        for back in 1...max(count, 1) {
+            guard let date = Calendar.current.date(byAdding: .month, value: -back, to: month) else { continue }
+            let income: Decimal = flow(entries, date).income
+            if income > 0 { result.append((date, income)) }
+        }
+        return result
+    }
+
+    /// A cautious steady monthly figure for a family whose income moves: in
+    /// about three months out of four, at least this much came in.
+    static func suggestedSalary(_ entries: [LedgerEntry], now: Date = .now) -> Decimal? {
+        let incomes: [Decimal] = incomeHistory(entries, before: now).map { $0.income }.sorted()
+        guard incomes.count >= 3 else { return nil }
+        let index: Int = Int((Double(incomes.count - 1) * 0.25).rounded(.down))
+        return Decimal((incomes[index].double / 100).rounded(.down) * 100)
     }
 
     /// Records the user's answer, remembers it for this merchant, and applies

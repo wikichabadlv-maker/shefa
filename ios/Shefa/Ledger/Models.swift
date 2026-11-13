@@ -22,6 +22,19 @@ final class LedgerEntry {
     var updatedAt: Date = Date.now
     /// A line the family added by hand and later deleted.
     var removed: Bool = false
+    /// For a card purchase: the day the card company takes the money from
+    /// the bank account.
+    var chargeDate: Date? = nil
+    /// Which payment this line is, and out of how many, for a purchase split
+    /// into payments. Both are 0 for an ordinary purchase.
+    var installment: Int = 0
+    var installments: Int = 0
+    /// Not final at the bank or the card company yet; the amount may change.
+    var pending: Bool = false
+    /// What the bank wrote next to the line, if anything.
+    var memo: String? = nil
+    /// The last four digits of the account or the card.
+    var account: String? = nil
 
     init(id: String, date: Date, title: String, amount: Decimal, source: String,
          method: String? = nil, categoryID: String? = nil, note: String? = nil,
@@ -57,7 +70,22 @@ final class LedgerEntry {
         var parts = [subTitle ?? category?.title ?? (amount < 0 ? "לבירור" : "הכנסה")]
         parts.append(source)
         if let method, method != source { parts.append(method) }
+        if let payments = paymentsText { parts.append(payments) }
         return parts.joined(separator: " · ")
+    }
+
+    /// True for a purchase that is paid in several monthly payments.
+    var isInPayments: Bool { installments > 1 && installment > 0 }
+
+    /// For example "תשלום 3 מתוך 10".
+    var paymentsText: String? {
+        isInPayments ? "תשלום \(installment) מתוך \(installments)" : nil
+    }
+
+    /// What is still to be paid after this payment.
+    var paymentsLeft: Decimal {
+        guard isInPayments, installment < installments else { return 0 }
+        return -amount * Decimal(installments - installment)
     }
 }
 

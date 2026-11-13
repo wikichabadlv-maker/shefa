@@ -29,6 +29,12 @@ final class SavingsGoal {
     var removed: Bool = false
     /// When the family wants to reach the goal, if they set a date.
     var deadline: Date? = nil
+    /// What was put aside or taken out, month by month, as text such as
+    /// "2026-10:300,2026-11:-100".
+    var log: String = ""
+    /// The yearly occasion this fund is for, such as "pesach"; empty for an
+    /// ordinary goal.
+    var occasion: String = ""
 
     init(id: String = UUID().uuidString, title: String, saved: Decimal = 0, target: Decimal,
          symbol: String = "star.fill", palette: Int = 0, createdAt: Date = .now) {
@@ -64,6 +70,60 @@ final class SavingsGoal {
     var share: Double {
         guard target > 0 else { return 0 }
         return min(max(NSDecimalNumber(decimal: saved / target).doubleValue, 0), 1)
+    }
+
+    /// What went in during each month, or came out when negative, the
+    /// oldest month first.
+    var deposits: [(month: String, amount: Decimal)] {
+        var result: [(month: String, amount: Decimal)] = []
+        for part in log.split(separator: ",") {
+            let pair = part.split(separator: ":")
+            guard pair.count == 2, let amount = Decimal(string: String(pair[1])) else { continue }
+            result.append((String(pair[0]), amount))
+        }
+        return result
+    }
+
+    /// Writes a deposit, or a withdrawal when negative, into the month's
+    /// line of the log. Two years of months are kept.
+    func record(_ amount: Decimal, on date: Date = .now) {
+        let month: String = Forecast.monthKey(date)
+        var all = deposits
+        if let index = all.firstIndex(where: { $0.month == month }) {
+            all[index].amount += amount
+        } else {
+            all.append((month, amount))
+        }
+        log = all.suffix(24).map { "\($0.month):\($0.amount)" }.joined(separator: ",")
+    }
+
+    /// What the family has been putting aside each month lately: the
+    /// average of up to three months, this one included. Months before the
+    /// first deposit are not counted.
+    var monthlyPace: Decimal? {
+        let all = deposits
+        guard let first = all.first?.month else { return nil }
+        var months: [String] = []
+        for back in 0..<3 {
+            guard let date = Calendar.current.date(byAdding: .month, value: -back, to: .now) else { continue }
+            let key: String = Forecast.monthKey(date)
+            if key >= first { months.append(key) }
+        }
+        guard !months.isEmpty else { return nil }
+        var sum = Decimal(0)
+        for item in all where months.contains(item.month) {
+            sum += item.amount
+        }
+        let pace: Decimal = sum / Decimal(months.count)
+        return pace > 0 ? pace : nil
+    }
+
+    /// When the goal will be reached at the pace of the last months.
+    var arrival: Date? {
+        guard left > 0, let pace = monthlyPace else { return nil }
+        let months: Double = (left / pace).double.rounded(.up)
+        guard months < 600 else { return nil }
+        return Calendar.current.date(byAdding: .month, value: Int(months), to: .now)
     }
 }
 
