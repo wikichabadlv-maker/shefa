@@ -51,7 +51,10 @@ struct TabEntrance: ViewModifier {
         var instant = Transaction()
         instant.disablesAnimations = true
         withTransaction(instant) { isShown = false }
-        withAnimation(.spring(duration: 0.45, bounce: 0.2)) { isShown = true }
+        // The hidden state has to be drawn once before the glide in starts.
+        Task { @MainActor in
+            withAnimation(.spring(duration: 0.45, bounce: 0.2)) { isShown = true }
+        }
     }
 }
 
