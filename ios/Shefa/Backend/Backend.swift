@@ -103,6 +103,7 @@ final class Backend {
     private struct DetailRow: Decodable {
         let transaction_id: String
         let category: String?
+        let sub_category: String?
     }
 
     /// Pulls the bank lines and the family's saved answers into the journal.
@@ -118,7 +119,7 @@ final class Backend {
                 URLQueryItem(name: "limit", value: "2000"),
             ], token: token)
             let detailsData = try await send("rest/v1/transaction_details", query: [
-                URLQueryItem(name: "select", value: "transaction_id,category"),
+                URLQueryItem(name: "select", value: "transaction_id,category,sub_category"),
             ], token: token)
             let rows = try JSONDecoder().decode([Row].self, from: rowsData)
             let details = try JSONDecoder().decode([DetailRow].self, from: detailsData)
@@ -132,13 +133,13 @@ final class Backend {
     }
 
     private func merge(rows: [Row], details: [DetailRow], into context: ModelContext) throws {
-        var answers: [String: String] = [:]
-        for detail in details {
-            if let category = detail.category { answers[detail.transaction_id] = category }
+        var answers: [String: DetailRow] = [:]
+        for detail in details where detail.category != nil {
+            answers[detail.transaction_id] = detail
         }
-        var rules: [String: String] = [:]
+        var rules: [String: MerchantRule] = [:]
         for rule in try context.fetch(FetchDescriptor<MerchantRule>()) {
-            rules[rule.merchant] = rule.categoryID
+            rules[rule.merchant] = rule
         }
         var known: [String: LedgerEntry] = [:]
         for entry in try context.fetch(FetchDescriptor<LedgerEntry>()) {
@@ -156,27 +157,50 @@ final class Backend {
 
         for row in rows {
             let amount = Decimal(string: String(format: "%.2f", row.amount)) ?? 0
-            if let entry = known[row.id] {
+            let entry: LedgerEntry
+            let isNew: Bool
+            if let existing = known[row.id] {
+                entry = existing
                 entry.amount = amount
                 entry.title = row.description
-                if let answer = answers[row.id] {
-                    entry.categoryID = answer
-                } else if entry.categoryID == nil {
-                    entry.categoryID = rules[Ledger.merchantKey(row.description)]
-                        ?? Classifier.guess(title: row.description, amount: amount,
-                                            isBankAccount: row.company == "discount")
-                }
-                continue
+                isNew = false
+            } else {
+                entry = LedgerEntry(
+                    id: row.id,
+                    date: dayFormat.date(from: "\(row.date) 12:00") ?? .now,
+                    title: row.description, amount: amount,
+                    source: Self.companyName(row.company))
+                isNew = true
             }
-            let guess = answers[row.id]
-                ?? rules[Ledger.merchantKey(row.description)]
-                ?? Classifier.guess(title: row.description, amount: amount,
-                                    isBankAccount: row.company == "discount")
-            let entry = LedgerEntry(
-                id: row.id,
-                date: dayFormat.date(from: "\(row.date) 12:00") ?? .now,
-                title: row.description, amount: amount,
-                source: Self.companyName(row.company), categoryID: guess)
+
+            if let answer = answers[row.id] {
+                entry.categoryID = answer.category
+                entry.subID = answer.sub_category
+                if let builtIn = SubCategory.find(answer.sub_category) {
+                    entry.subTitle = builtIn.title
+                } else if answer.sub_category == nil {
+                    entry.subTitle = nil
+                }
+            } else if entry.categoryID == nil {
+                if let rule = rules[Ledger.merchantKey(row.description)] {
+                    entry.categoryID = rule.categoryID
+                    entry.subID = rule.subID
+                    entry.subTitle = rule.subTitle
+                } else if let guess = Classifier.guess(
+                    title: row.description, amount: amount, isBankAccount: row.company == "discount") {
+                    entry.categoryID = guess.categoryID
+                    entry.subID = guess.sub?.id
+                    entry.subTitle = guess.sub?.title
+                }
+            } else if entry.subID == nil, !isNew,
+                      let guess = Classifier.guess(
+                        title: row.description, amount: amount, isBankAccount: row.company == "discount"),
+                      guess.categoryID == entry.categoryID {
+                // A line classified by an older version gets its sub-category now.
+                entry.subID = guess.sub?.id
+                entry.subTitle = guess.sub?.title
+            }
+            guard isNew else { continue }
             context.insert(entry)
             known[row.id] = entry
         }
@@ -193,15 +217,16 @@ final class Backend {
     }
 
     /// Saves what the family said about a bank line, so both phones see it.
-    func saveAnswer(entryID: String, categoryID: String) async {
+    func saveAnswer(entryID: String, categoryID: String, subID: String? = nil) async {
         guard isSignedIn, !entryID.hasPrefix("sample-") else { return }
         do {
             let token = try await validToken()
             let stamp = ISO8601DateFormatter().string(from: .now)
-            let payload: [[String: String]] = [[
+            let payload: [[String: String?]] = [[
                 "transaction_id": entryID,
                 "category": categoryID,
-                "answered_by": session?.userID ?? "",
+                "sub_category": subID,
+                "answered_by": session?.userID,
                 "updated_at": stamp,
             ]]
             let body = try JSONEncoder().encode(payload)

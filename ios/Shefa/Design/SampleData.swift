@@ -16,7 +16,8 @@ enum SampleData {
             LedgerEntry(
                 id: "sample-\(index)", date: now.addingTimeInterval(-hoursAgo * 3600),
                 title: title, amount: Decimal(string: amount) ?? 0, source: source,
-                method: method, categoryID: category, isSample: true
+                method: method, categoryID: category, isSample: true,
+                sub: Classifier.guess(title: title, amount: Decimal(string: amount) ?? 0, isBankAccount: false)?.sub
             )
         }
         return [

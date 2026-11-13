@@ -79,17 +79,35 @@ extension Ledger {
         return value
     }
 
-    static func seedPlanningIfNeeded(in context: ModelContext) {
-        if ((try? context.fetchCount(FetchDescriptor<BudgetLine>())) ?? 0) == 0 {
-            let limits: [(String, Decimal)] = [
-                ("food", 4_500), ("home", 2_800), ("transport", 1_400), ("kids", 2_000),
-                ("health", 500), ("clothing", 600), ("shabbat", 900), ("gift", 500),
-                ("maaser", 0), ("other", 1_300),
-            ]
-            for (id, limit) in limits where limit > 0 {
-                context.insert(BudgetLine(categoryID: id, limit: limit, updatedAt: SharedSync.untouched))
+    /// A starting budget from the family's own recent spending: the average
+    /// of up to three earlier months, without one-time expenses, rounded up.
+    static func suggestedBudget(_ entries: [LedgerEntry], now: Date = .now) -> [String: Decimal] {
+        let calendar = Calendar.current
+        var months: [[LedgerEntry]] = []
+        for back in 1...3 {
+            guard let month = calendar.date(byAdding: .month, value: -back, to: now) else { continue }
+            let lines = inMonth(entries, month)
+            if !lines.isEmpty { months.append(lines) }
+        }
+        if months.isEmpty { months = [inMonth(entries, now)] }
+
+        var sums: [String: Decimal] = [:]
+        for lines in months {
+            for entry in lines where entry.amount < 0 && entry.nature != .once {
+                guard let category = entry.categoryID,
+                      SpendCategory.spending.contains(where: { $0.id == category }) else { continue }
+                sums[category, default: 0] -= entry.amount
             }
         }
+        var result: [String: Decimal] = [:]
+        for (category, sum) in sums {
+            let average = NSDecimalNumber(decimal: sum / Decimal(months.count)).doubleValue
+            result[category] = Decimal((average / 50).rounded(.up) * 50)
+        }
+        return result
+    }
+
+    static func seedPlanningIfNeeded(in context: ModelContext) {
         if ((try? context.fetchCount(FetchDescriptor<SavingsGoal>())) ?? 0) == 0 {
             let now = Date.now
             let examples: [(String, Decimal, Decimal, String)] = [

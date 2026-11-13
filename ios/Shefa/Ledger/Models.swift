@@ -14,10 +14,15 @@ final class LedgerEntry {
     var categoryID: String?
     var note: String?
     var isSample: Bool
+    var subID: String? = nil
+    var subTitle: String? = nil
+    /// Set when the family marks this line as fixed, variable or one-time
+    /// differently from what its sub-category normally is.
+    var natureOverride: String? = nil
 
     init(id: String, date: Date, title: String, amount: Decimal, source: String,
          method: String? = nil, categoryID: String? = nil, note: String? = nil,
-         isSample: Bool = false) {
+         isSample: Bool = false, sub: SubCategory? = nil) {
         self.id = id
         self.date = date
         self.title = title
@@ -27,6 +32,8 @@ final class LedgerEntry {
         self.categoryID = categoryID
         self.note = note
         self.isSample = isSample
+        self.subID = sub?.id
+        self.subTitle = sub?.title
     }
 
     var category: SpendCategory? { SpendCategory.find(categoryID) }
@@ -34,8 +41,12 @@ final class LedgerEntry {
     /// An expense that still waits for the user to say what it was.
     var needsAnswer: Bool { categoryID == nil && amount < 0 }
 
+    var nature: Nature {
+        Nature(rawValue: natureOverride ?? "") ?? SubCategory.find(subID)?.nature ?? .variable
+    }
+
     var detail: String {
-        var parts = [category?.title ?? (amount < 0 ? "לבירור" : "הכנסה")]
+        var parts = [subTitle ?? category?.title ?? (amount < 0 ? "לבירור" : "הכנסה")]
         parts.append(source)
         if let method { parts.append(method) }
         return parts.joined(separator: " · ")
@@ -47,47 +58,29 @@ final class LedgerEntry {
 final class MerchantRule {
     @Attribute(.unique) var merchant: String
     var categoryID: String
+    var subID: String? = nil
+    var subTitle: String? = nil
 
-    init(merchant: String, categoryID: String) {
+    init(merchant: String, categoryID: String, subID: String? = nil, subTitle: String? = nil) {
         self.merchant = merchant
         self.categoryID = categoryID
+        self.subID = subID
+        self.subTitle = subTitle
     }
 }
 
-struct SpendCategory: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let symbol: String
-    let artwork: Artwork
+/// A sub-category the family added themselves.
+@Model
+final class CustomSub {
+    @Attribute(.unique) var id: String
+    var groupID: String
+    var title: String
+    var createdAt: Date
 
-    static let maaserID = "maaser"
-    static let incomeID = "income"
-    static let transferID = "transfer"
-    static let savingsID = "savings"
-
-    /// Categories that move money around rather than spend it.
-    static let notSpending: Set<String> = [transferID, savingsID]
-
-    static let all: [SpendCategory] = [
-        SpendCategory(id: "food", title: "מזון ומכולת", symbol: "cart.fill", artwork: Theme.pink),
-        SpendCategory(id: "home", title: "בית וחשבונות", symbol: "bolt.fill", artwork: Theme.violet),
-        SpendCategory(id: "transport", title: "תחבורה", symbol: "fuelpump.fill", artwork: Theme.blue),
-        SpendCategory(id: "kids", title: "ילדים וחינוך", symbol: "figure.and.child.holdinghands", artwork: Artwork(0x0891B2, 0x155E75)),
-        SpendCategory(id: "health", title: "בריאות", symbol: "cross.case.fill", artwork: Artwork(0xDC2626, 0x991B1B)),
-        SpendCategory(id: "clothing", title: "ביגוד", symbol: "tshirt.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
-        SpendCategory(id: "shabbat", title: "שבת וחג", symbol: "flame.fill", artwork: Artwork(0xEA580C, 0x9A3412)),
-        SpendCategory(id: "gift", title: "מתנות ושמחות", symbol: "gift.fill", artwork: Artwork(0xC026D3, 0x86198F)),
-        SpendCategory(id: maaserID, title: "מעשר וצדקה", symbol: "heart.fill", artwork: Theme.amber),
-        SpendCategory(id: "savings", title: "חיסכון", symbol: "banknote.fill", artwork: Theme.emerald),
-        SpendCategory(id: incomeID, title: "הכנסות", symbol: "arrow.up", artwork: Theme.green),
-        SpendCategory(id: transferID, title: "חיוב כרטיס והעברות", symbol: "arrow.left.arrow.right", artwork: Artwork(0x94A3B8, 0x475569)),
-        SpendCategory(id: "other", title: "אחר", symbol: "square.grid.2x2.fill", artwork: Artwork(0x64748B, 0x334155)),
-    ]
-
-    static let unknown = SpendCategory(id: "unknown", title: "לבירור", symbol: "questionmark", artwork: Theme.amber)
-
-    static func find(_ id: String?) -> SpendCategory? {
-        guard let id else { return nil }
-        return all.first { $0.id == id }
+    init(groupID: String, title: String) {
+        self.id = "custom.\(UUID().uuidString)"
+        self.groupID = groupID
+        self.title = title
+        self.createdAt = .now
     }
 }

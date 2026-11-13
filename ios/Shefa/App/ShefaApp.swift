@@ -8,6 +8,7 @@ struct ShefaApp: App {
     static let container: ModelContainer = {
         let schema = Schema([
             LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self,
+            CustomSub.self,
         ])
         do {
             return try ModelContainer(for: schema)

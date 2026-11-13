@@ -6,12 +6,11 @@ struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
 
-    @Query private var budgetLines: [BudgetLine]
     @State private var backend = Backend.shared
     @Query(filter: #Predicate<SavingsGoal> { !$0.removed }, sort: \SavingsGoal.createdAt)
     private var goals: [SavingsGoal]
 
-    private var month: MonthSummary { Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines)) }
+    private var month: MonthSummary { Ledger.summary(entries) }
     private var question: LedgerEntry? { entries.first { $0.needsAnswer } }
     private var recent: [LedgerEntry] { Array(entries.prefix(3)) }
 
@@ -113,13 +112,21 @@ struct HomeView: View {
     }
 }
 
-/// The vivid emerald card with what is left to spend this month.
+/// The vivid emerald card with what is left to live on this month.
 struct MonthHeroCard: View {
     let month: MonthSummary
 
+    private var isOver: Bool { month.remaining < 0 }
+
+    private var subtitle: String {
+        if month.daysLeft <= 0 { return "סיכום החודש" }
+        if isOver { return "עוד \(month.daysLeft) ימים עד סוף החודש" }
+        return "כ־\(Money.text(month.perWeek)) לשבוע · עוד \(month.daysLeft) ימים"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("נשאר להוציא החודש")
+            Text(isOver ? "חריגה מהתקציב לחיים החודש" : "נשאר לחיות ממנו החודש")
                 .font(.system(size: 15, weight: .semibold))
                 .opacity(0.9)
 
@@ -141,15 +148,15 @@ struct MonthHeroCard: View {
                 .tint(.white)
                 .padding(.top, 2)
 
-            Text("מתוך \(Money.text(month.budget)) · עוד \(month.daysLeft) ימים")
+            Text(subtitle)
                 .font(.system(size: 13, weight: .medium))
                 .opacity(0.9)
                 .padding(.top, 2)
 
             HStack(spacing: 0) {
-                stat("הכנסות", Money.text(month.income))
+                stat(month.incomeIsEstimate ? "הכנסות (צפי)" : "הכנסות", Money.text(month.income))
                 Divider().overlay(.white.opacity(0.3)).frame(height: 28)
-                stat("נחסך", Money.text(month.saved))
+                stat("קבועות", Money.text(month.fixed))
                 Divider().overlay(.white.opacity(0.3)).frame(height: 28)
                 stat("מעשר", Money.text(month.maaserGiven), color: Color(hex: 0xFDE68A))
             }

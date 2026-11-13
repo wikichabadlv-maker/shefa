@@ -10,8 +10,21 @@ struct BudgetList: View {
     @State private var editing: SpendCategory?
     @State private var amountText = ""
 
-    private var categories: [SpendCategory] {
-        SpendCategory.all.filter { $0.id != SpendCategory.incomeID && $0.id != SpendCategory.maaserID && !SpendCategory.notSpending.contains($0.id) }
+    private var categories: [SpendCategory] { SpendCategory.spending }
+
+    private func applySuggestion() {
+        let suggestion = Ledger.suggestedBudget(entries)
+        for category in categories {
+            let value = suggestion[category.id] ?? 0
+            if let line = lines.first(where: { $0.categoryID == category.id }) {
+                line.limit = value
+                line.updatedAt = .now
+            } else if value > 0 {
+                context.insert(BudgetLine(categoryID: category.id, limit: value))
+            }
+        }
+        try? context.save()
+        SharedSync.shared.changed(in: context)
     }
 
     private func limit(_ category: SpendCategory) -> Decimal {
@@ -67,7 +80,17 @@ struct BudgetList: View {
             Text(editing?.title ?? "")
         }
 
-        Text("לחיצה על קטגוריה מאפשרת לקבוע לה תקציב.")
+        Button {
+            withAnimation(.snappy) { applySuggestion() }
+        } label: {
+            Label("הצעת תקציב לפי ההוצאות שלנו", systemImage: "wand.and.stars")
+                .font(.system(size: 16, weight: .bold))
+                .frame(maxWidth: .infinity, minHeight: 48)
+        }
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+
+        Text("ההצעה היא הממוצע של החודשים האחרונים, בלי הוצאות חד פעמיות. לחיצה על קטגוריה מאפשרת לשנות.")
             .font(.system(size: 13))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 6)

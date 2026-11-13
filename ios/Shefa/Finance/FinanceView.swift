@@ -14,12 +14,11 @@ struct FinanceView: View {
     @State private var section: FinanceSection = .transactions
     @State private var query = ""
     @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
-    @Query private var budgetLines: [BudgetLine]
 
     @State private var month = Date.now
 
     private var summary: MonthSummary {
-        Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines), now: month)
+        Ledger.summary(entries, now: month)
     }
 
     private var monthEntries: [LedgerEntry] { Ledger.inMonth(entries, month) }
@@ -72,13 +71,13 @@ struct FinanceView: View {
 
                     switch section {
                     case .overview:
-                        MonthHeroCard(month: summary)
+                        OverviewView(entries: entries, month: month, summary: summary)
                     case .transactions:
                         TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
                     case .budget:
                         BudgetList(entries: entries, month: month)
                     case .savings:
-                        SavingsList(month: Ledger.summary(entries, budget: Ledger.totalBudget(budgetLines)))
+                        SavingsList(month: Ledger.summary(entries))
                     }
                 }
                 .padding(.horizontal, 16)
@@ -212,7 +211,7 @@ struct TransactionsList: View {
 struct TransactionRow: View {
     let entry: LedgerEntry
 
-    private var look: SpendCategory { entry.category ?? (entry.amount > 0 ? SpendCategory.find(SpendCategory.incomeID)! : .unknown) }
+    private var look: SpendCategory { entry.category ?? (entry.amount > 0 ? (SpendCategory.find(SpendCategory.incomeID) ?? .unknown) : .unknown) }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -234,54 +233,6 @@ struct TransactionRow: View {
         }
         .frame(height: 60)
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// A sheet for saying what a purchase was. The answer is remembered for
-/// future purchases at the same place.
-struct CategoryPicker: View {
-    let entry: LedgerEntry
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(SpendCategory.all) { category in
-                        Button {
-                            Ledger.answer(entry, with: category, in: context)
-                            dismiss()
-                        } label: {
-                            HStack(spacing: 12) {
-                                ArtworkIcon(artwork: category.artwork, symbol: category.symbol, size: 34)
-                                Text(category.title)
-                                    .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(Color.primary)
-                                Spacer()
-                                if entry.categoryID == category.id {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 15, weight: .bold))
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    Text("\(entry.title) · \(Money.text(entry.amount, fractionDigits: 2))")
-                } footer: {
-                    Text("שפע יזכור את הבחירה לקניות הבאות באותו מקום.")
-                }
-            }
-            .navigationTitle("מה זה היה?")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("ביטול") { dismiss() }
-                }
-            }
-        }
-        .environment(\.layoutDirection, .rightToLeft)
-        .presentationDetents([.medium, .large])
     }
 }
 

@@ -1,18 +1,43 @@
 import Foundation
 import SwiftData
 
+/// The month in one picture: what came in, what is committed, and what is
+/// left to live on.
 struct MonthSummary {
-    let budget: Decimal
-    let remaining: Decimal
-    let daysLeft: Int
+    /// Income for the month. Early in the month this is the larger of what
+    /// already arrived and the recent monthly average.
     let income: Decimal
+    let incomeSoFar: Decimal
+    /// Fixed costs, estimated the same way as income.
+    let fixed: Decimal
+    let fixedPaid: Decimal
+    let variableSpent: Decimal
+    let onceSpent: Decimal
     let saved: Decimal
     let maaserGiven: Decimal
     let maaserDue: Decimal
+    let daysLeft: Int
+
+    var incomeIsEstimate: Bool { income > incomeSoFar }
+
+    /// What the month leaves for everyday life after fixed costs, maaser and savings.
+    var livingBudget: Decimal {
+        income - fixed - max(maaserDue, maaserGiven) - saved
+    }
+
+    /// What is still free to spend this month.
+    var remaining: Decimal { livingBudget - variableSpent - onceSpent }
+
+    var perWeek: Decimal {
+        let weeks = max(1, Int((Double(daysLeft) / 7).rounded(.up)))
+        return max(remaining, 0) / Decimal(weeks)
+    }
+
+    var totalSpent: Decimal { fixedPaid + variableSpent + onceSpent + maaserGiven }
 
     var spentShare: Double {
-        guard budget > 0 else { return 0 }
-        let share = NSDecimalNumber(decimal: (budget - remaining) / budget).doubleValue
+        guard livingBudget > 0 else { return remaining < 0 ? 1 : 0 }
+        let share = NSDecimalNumber(decimal: (variableSpent + onceSpent) / livingBudget).doubleValue
         return min(max(share, 0), 1)
     }
 }
@@ -60,52 +85,102 @@ enum Ledger {
             .sorted { $0.id > $1.id }
     }
 
-    static func summary(_ entries: [LedgerEntry], budget: Decimal = 14_500, now: Date = .now) -> MonthSummary {
+    private struct MonthTotals {
+        var income = Decimal(0)
+        var fixed = Decimal(0)
+        var variable = Decimal(0)
+        var once = Decimal(0)
+        var maaser = Decimal(0)
+        var saved = Decimal(0)
+    }
+
+    private static func totals(_ entries: [LedgerEntry]) -> MonthTotals {
+        var result = MonthTotals()
+        for entry in entries {
+            let category = entry.categoryID ?? ""
+            if category == SpendCategory.transferID { continue }
+            if entry.amount > 0 {
+                result.income += entry.amount
+            } else if category == SpendCategory.maaserID {
+                result.maaser -= entry.amount
+            } else if category == SpendCategory.savingsID {
+                result.saved -= entry.amount
+            } else {
+                switch entry.nature {
+                case .fixed: result.fixed -= entry.amount
+                case .variable: result.variable -= entry.amount
+                case .once: result.once -= entry.amount
+                }
+            }
+        }
+        return result
+    }
+
+    static func summary(_ entries: [LedgerEntry], now: Date = .now) -> MonthSummary {
         let calendar = Calendar.current
-        let month = entries.filter { calendar.isDate($0.date, equalTo: now, toGranularity: .month) }
-        let income = month
-            .filter { $0.amount > 0 && $0.categoryID != SpendCategory.transferID }
-            .reduce(Decimal(0)) { $0 + $1.amount }
-        let maaser = month.filter { $0.categoryID == SpendCategory.maaserID }.reduce(Decimal(0)) { $0 - $1.amount }
-        let saved = month.filter { $0.categoryID == "savings" }.reduce(Decimal(0)) { $0 - $1.amount }
-        let spent = month
-            .filter { $0.amount < 0 && !SpendCategory.notSpending.contains($0.categoryID ?? "") }
-            .reduce(Decimal(0)) { $0 - $1.amount }
-        let daysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 30
+        let current = totals(inMonth(entries, now))
         let isCurrentMonth = calendar.isDate(now, equalTo: .now, toGranularity: .month)
-        let daysLeft = isCurrentMonth ? daysInMonth - calendar.component(.day, from: .now) : 0
+
+        var income = current.income
+        var fixed = current.fixed
+        if isCurrentMonth {
+            // Compare with up to three earlier months that have any activity.
+            var earlier: [MonthTotals] = []
+            for back in 1...3 {
+                guard let month = calendar.date(byAdding: .month, value: -back, to: now) else { continue }
+                let lines = inMonth(entries, month)
+                if !lines.isEmpty { earlier.append(totals(lines)) }
+            }
+            if !earlier.isEmpty {
+                let count = Decimal(earlier.count)
+                income = max(income, earlier.reduce(Decimal(0)) { $0 + $1.income } / count)
+                fixed = max(fixed, earlier.reduce(Decimal(0)) { $0 + $1.fixed } / count)
+            }
+        }
+
+        let daysInMonth = calendar.range(of: .day, in: .month, for: now)?.count ?? 30
+        let daysLeft = isCurrentMonth ? daysInMonth - calendar.component(.day, from: .now) + 1 : 0
         return MonthSummary(
-            budget: budget, remaining: budget - spent, daysLeft: daysLeft,
-            income: income, saved: saved, maaserGiven: maaser, maaserDue: income / 10
-        )
+            income: income, incomeSoFar: current.income, fixed: fixed, fixedPaid: current.fixed,
+            variableSpent: current.variable, onceSpent: current.once, saved: current.saved,
+            maaserGiven: current.maaser, maaserDue: income / 10, daysLeft: daysLeft)
     }
 
     /// Records the user's answer, remembers it for this merchant, and applies
     /// it to other unanswered purchases at the same merchant.
-    static func answer(_ entry: LedgerEntry, with category: SpendCategory, in context: ModelContext) {
+    static func answer(_ entry: LedgerEntry, with category: SpendCategory, sub: SubCategory? = nil,
+                       in context: ModelContext) {
         let key = merchantKey(entry.title)
         entry.categoryID = category.id
+        entry.subID = sub?.id
+        entry.subTitle = sub?.title
         var answered = [entry.id]
 
         let rules = (try? context.fetch(FetchDescriptor<MerchantRule>())) ?? []
         if let rule = rules.first(where: { $0.merchant == key }) {
             rule.categoryID = category.id
+            rule.subID = sub?.id
+            rule.subTitle = sub?.title
         } else {
-            context.insert(MerchantRule(merchant: key, categoryID: category.id))
+            context.insert(MerchantRule(merchant: key, categoryID: category.id,
+                                        subID: sub?.id, subTitle: sub?.title))
         }
 
         let others = (try? context.fetch(FetchDescriptor<LedgerEntry>())) ?? []
         for other in others where other.categoryID == nil && other.amount < 0 && merchantKey(other.title) == key {
             other.categoryID = category.id
+            other.subID = sub?.id
+            other.subTitle = sub?.title
             answered.append(other.id)
         }
         try? context.save()
 
         let categoryID = category.id
+        let subID = sub?.id
         let ids = answered
         Task { @MainActor in
             for id in ids {
-                await Backend.shared.saveAnswer(entryID: id, categoryID: categoryID)
+                await Backend.shared.saveAnswer(entryID: id, categoryID: categoryID, subID: subID)
             }
         }
     }
