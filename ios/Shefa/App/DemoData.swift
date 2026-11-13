@@ -80,6 +80,13 @@ enum DemoData {
             context.insert(ScheduleItem(title: line.0, startMinute: line.1, durationMinutes: line.2,
                                         weekdays: ScheduleItem.everyDay, symbol: line.3, palette: line.4))
         }
+        // One part that follows the sun and not the clock.
+        let mincha = ScheduleItem(title: "מנחה", startMinute: 16 * 60 + 15, durationMinutes: 15,
+                                  weekdays: ScheduleItem.weekdaysMask, symbol: "sun.max.fill", palette: 6)
+        mincha.anchor = "shkia"
+        mincha.anchorOffset = -20
+        mincha.startMinute = mincha.start(on: .now)
+        context.insert(mincha)
 
         let fund = SavingsGoal(id: SavingsGoal.emergencyID, title: "קרן חירום", saved: 6500, target: 24000,
                                symbol: "umbrella.fill", palette: 3)

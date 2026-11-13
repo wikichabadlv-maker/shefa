@@ -79,9 +79,11 @@ struct HomeView: View {
 
                     CoachCard()
                         .cascade(4)
+                        .id("coach")
 
                     HabitsCard()
                         .cascade(5)
+                        .id("habits")
 
                     DailyStudyCard(opensTracker: { showsStudy = true })
                         .cascade(6)
