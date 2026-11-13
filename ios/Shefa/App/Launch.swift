@@ -11,7 +11,7 @@ enum Launch {
         switch screen {
         case "schedule": return .schedule
         case "tasks": return .tasks
-        case "notes", "achievements", "settings", "zmanim": return .more
+        case "notes", "achievements", "settings", "zmanim", "books": return .more
         case "task", "shopping": return .tasks
         case "more": return .more
         default: return .home
@@ -51,6 +51,7 @@ enum Launch {
         case "achievements": return ["achievements"]
         case "settings": return ["settings"]
         case "zmanim": return ["zmanim"]
+        case "books": return ["books"]
         default: return []
         }
     }

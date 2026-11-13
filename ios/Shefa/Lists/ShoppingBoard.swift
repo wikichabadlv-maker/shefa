@@ -32,14 +32,14 @@ struct ShoppingBoard: View {
     private var open: [ListItem] { items.filter { !$0.isDone } }
     private var inCart: [ListItem] { items.filter(\.isDone) }
 
+    /// What is probably running out, by how often this home buys it.
+    private var due: [ShoppingMemory.Rhythm] { Array(ShoppingMemory.due(everything).prefix(8)) }
+
     /// What this home buys most often comes first, then the usual staples.
     private var suggestions: [String] {
-        var counts: [String: Int] = [:]
-        for item in everything where item.removed { counts[item.title, default: 0] += 1 }
-        let learned = counts.filter { $0.value >= 2 }.sorted { ($0.value, $1.key) > ($1.value, $0.key) }.map(\.key)
-        var seen = Set(items.map(\.title))
+        var seen = Set(items.map(\.title)).union(due.map(\.title))
         var result: [String] = []
-        for name in learned + Self.staples where !seen.contains(name) {
+        for name in ShoppingMemory.favorites(everything) + Self.staples where !seen.contains(name) {
             seen.insert(name)
             result.append(name)
         }
@@ -54,6 +54,10 @@ struct ShoppingBoard: View {
         VStack(alignment: .leading, spacing: 18) {
             hero
             addBar
+
+            if !due.isEmpty {
+                dueCard
+            }
 
             if !suggestions.isEmpty {
                 suggestionRow
@@ -162,6 +166,54 @@ struct ShoppingBoard: View {
         }
         .padding(14)
         .cardSurface()
+    }
+
+    /// Products whose usual time has come, each with its rhythm.
+    private var dueCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("כנראה נגמר", systemImage: "clock.arrow.circlepath")
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundStyle(Theme.amberInk)
+                Spacer()
+                Button("הוספת הכול") {
+                    for item in due { add(item.title, keepsTyping: false) }
+                }
+                .font(.system(size: 14, weight: .bold))
+                .buttonStyle(.pressable)
+                .foregroundStyle(Theme.amberInk)
+            }
+            Text("לפי הקצב שבו אתם קונים. ככל שתסיימו יותר קניות דרך האפליקציה, ההצעות ידייקו.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.amberInk.opacity(0.8))
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(due) { item in
+                        Button {
+                            add(item.title, keepsTyping: false)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Label(item.title, systemImage: "plus")
+                                    .font(.system(size: 15, weight: .bold))
+                                Text(ShoppingMemory.intervalText(item.interval)
+                                     + " · עברו \(item.daysSinceLast)")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .opacity(0.75)
+                            }
+                            .foregroundStyle(Color.primary)
+                            .padding(.horizontal, 14)
+                            .frame(height: 50)
+                            .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.pressable)
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(14)
+        .background(Theme.amberGround, in: Theme.cardShape)
     }
 
     private var suggestionRow: some View {
@@ -288,6 +340,7 @@ struct ShoppingBoard: View {
             .buttonStyle(.pressable)
 
             Button {
+                ShoppingMemory.record(inCart.map(\.title))
                 withAnimation(.section) {
                     for item in inCart {
                         item.removed = true
@@ -295,16 +348,17 @@ struct ShoppingBoard: View {
                     }
                 }
                 save()
+                Notifier.shared.refresh(in: context)
                 Feedback.tap()
             } label: {
-                Image(systemName: "trash")
+                Image(systemName: "checkmark")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(Color.primary)
                     .frame(width: 52, height: 48)
                     .background(Theme.chip, in: Capsule())
             }
             .buttonStyle(.pressable)
-            .accessibilityLabel("ניקוי העגלה בלי תיעוד")
+            .accessibilityLabel("קנינו, בלי תיעוד בהוצאות")
         }
     }
 
@@ -349,6 +403,8 @@ struct ShoppingBoard: View {
             categoryID: "food", note: inCart.map(\.title).joined(separator: ", "),
             sub: SubCategory.find("food.groceries"))
         context.insert(entry)
+        ShoppingMemory.record(inCart.map(\.title))
+        Notifier.shared.refresh(in: context)
         withAnimation(.section) {
             for item in inCart {
                 item.removed = true

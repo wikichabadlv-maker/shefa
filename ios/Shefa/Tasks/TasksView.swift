@@ -115,8 +115,8 @@ struct TasksView: View {
                             }
 
                             if !today.isEmpty || !doneToday.isEmpty {
-                                section("היום", today, hint: today.count > 5
-                                        ? "הרבה ליום אחד. מה שלושת הדברים שבאמת חייבים לקרות היום?" : nil)
+                                section("היום", today, hint: today.count > Coach.dailyPicks + 1
+                                        ? "הרבה ליום אחד. מה הדברים שבאמת חייבים לקרות היום?" : nil)
                             } else if !open.isEmpty {
                                 pickHint
                             }

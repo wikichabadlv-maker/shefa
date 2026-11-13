@@ -64,7 +64,11 @@ struct HomeView: View {
                     ZmanimCard()
                         .id("today")
 
+                    CoachCard()
+
                     HabitsCard()
+
+                    DailyStudyCard()
 
                     insights
 

@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage(Notifier.candlesKey) private var notifyCandles = true
     @AppStorage(Notifier.shmaKey) private var notifyShma = false
     @AppStorage(Notifier.sunsetKey) private var notifySunset = false
+    @AppStorage(Coach.enabledKey) private var notifyCoach = true
     @State private var finder = LocationFinder.shared
     @State private var notificationsBlocked = false
 
@@ -114,6 +115,7 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle("מאמן אישי: תקציר בוקר, השעה הצלולה, תכנון ערב וקניות", isOn: $notifyCoach)
                 Toggle("תחילת כל חלק בלו״ז", isOn: $notifySchedule)
                 Toggle("מטלות שהגיע זמנן (8:30 בבוקר)", isOn: $notifyTasks)
                 Toggle("40 דקות לפני הדלקת נרות", isOn: $notifyCandles)
@@ -126,7 +128,7 @@ struct SettingsView: View {
                     Text("ההתראות כבויות לאפליקציה. אפשר להפעיל אותן בהגדרות האייפון, תחת שפע.")
                 }
             }
-            .onChange(of: [notifySchedule, notifyTasks, notifyCandles, notifyShma, notifySunset]) { _, _ in
+            .onChange(of: [notifySchedule, notifyTasks, notifyCandles, notifyShma, notifySunset, notifyCoach]) { _, _ in
                 remindersChanged()
             }
             .onChange(of: cityID) { _, _ in
@@ -137,6 +139,15 @@ struct SettingsView: View {
                 Toggle("צלילים", isOn: $soundsOn)
             } footer: {
                 Text("צליל קצר כשמסיימים מטלה או יום שלם. כשהאייפון על שקט מרגישים רק רטט.")
+            }
+
+            Section {
+                Button("לענות מחדש על שאלות ההיכרות") {
+                    Coach.forgetAnswers()
+                    Notifier.shared.refresh(in: context)
+                }
+            } footer: {
+                Text("המאמן שואל בדף הבית שאלה קצרה אחת ביום, ולפי התשובות מתאים את ההתראות וההצעות.")
             }
 
             Section("כספים") {

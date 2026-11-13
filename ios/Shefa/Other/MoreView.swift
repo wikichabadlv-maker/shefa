@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 private enum AreaKind: String {
-    case zmanim, shopping, notes, learning, achievements, assistant, settings
+    case zmanim, shopping, books, notes, learning, achievements, assistant, settings
 }
 
 private struct AppArea: Identifiable {
@@ -30,8 +30,9 @@ struct MoreView: View {
     private let areas = [
         AppArea(kind: .zmanim, title: "זמני היום", subtitle: "לוח הזמנים ההלכתי", symbol: "sun.horizon.fill", artwork: Artwork(0x0EA5E9, 0x4F46E5)),
         AppArea(kind: .shopping, title: "רשימת קניות", subtitle: "משותפת לשניכם", symbol: "cart.fill", artwork: Theme.pink),
+        AppArea(kind: .books, title: "לימוד וקריאה", subtitle: "חת״ת, רמב״ם ומדף הספרים", symbol: "books.vertical.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
         AppArea(kind: .notes, title: "לזכור", subtitle: "פתקים ודברים חשובים", symbol: "lightbulb.fill", artwork: Theme.amber),
-        AppArea(kind: .learning, title: "לימוד וחידושים", subtitle: "מה למדנו ומה חידשנו", symbol: "book.fill", artwork: Theme.blue),
+        AppArea(kind: .learning, title: "חידושים ונקודות", subtitle: "מה למדנו ומה חידשנו", symbol: "book.fill", artwork: Theme.blue),
         AppArea(kind: .achievements, title: "הישגים", subtitle: "מהפעילות האמיתית שלכם", symbol: "trophy.fill", artwork: Theme.violet),
         AppArea(kind: .assistant, title: "שפע · עוזר קולי", subtitle: "בקרוב", symbol: "waveform", artwork: Theme.emerald),
         AppArea(kind: .settings, title: "הגדרות", subtitle: "חשבון, עיר ומראה", symbol: "gearshape.fill", artwork: Artwork(0x64748B, 0x334155)),
@@ -95,6 +96,8 @@ struct MoreView: View {
         switch AreaKind(rawValue: id) {
         case .shopping:
             ShoppingScreen()
+        case .books:
+            BooksView()
         case .notes:
             NotesView(kind: ListItem.note, title: "לזכור", placeholder: "מה חשוב לזכור?",
                       emptyTitle: "עוד אין פתקים", emptyText: "קוד לדלת, מידה, רעיון למתנה. כל מה שלא רוצים לשכוח.",

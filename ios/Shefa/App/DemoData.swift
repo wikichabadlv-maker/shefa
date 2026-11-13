@@ -31,6 +31,17 @@ enum DemoData {
         for title in ["קוד לדלת הבניין: 2580", "מידת נעליים של רבקי: 38"] {
             context.insert(ListItem(kind: ListItem.note, title: title))
         }
+        let book = Book(title: "היום יום", author: "הרבי מליובאוויטש", totalPages: 240, palette: 7)
+        for (back, page) in [(4, 96), (3, 104), (2, 118), (1, 131), (0, 142)] {
+            book.setPage(page, on: Calendar.current.date(byAdding: .day, value: -back, to: .now) ?? .now)
+        }
+        book.createdAt = Calendar.current.date(byAdding: .day, value: -12, to: .now) ?? .now
+        context.insert(book)
+        for (title, gaps) in [("חלב", [18, 12, 6]), ("לחם", [9, 6, 3]), ("יין", [21, 14, 7])] {
+            for gap in gaps {
+                ShoppingMemory.record([title], on: Calendar.current.date(byAdding: .day, value: -gap, to: .now) ?? .now)
+            }
+        }
         context.insert(ListItem(kind: ListItem.learning, title: "לסיים פרק ב׳ בתניא"))
 
         let schedule: [(String, Int, Int, String, Int)] = [

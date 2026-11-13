@@ -68,5 +68,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(\.layoutDirection, .rightToLeft)
-        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self, CustomSub.self, ScheduleItem.self, Habit.self], inMemory: true)
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self, CustomSub.self, ScheduleItem.self, Habit.self, Book.self], inMemory: true)
 }
