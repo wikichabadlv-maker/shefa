@@ -106,9 +106,6 @@ enum Coach {
         CoachQuestion(id: "peak", text: "מתי הראש שלכם הכי צלול?",
                       why: "בשעה הזו אזכיר את המטלה הכי חשובה של היום.",
                       options: [("9:00", "בבוקר"), ("13:30", "בצהריים"), ("20:00", "בערב")]),
-        CoachQuestion(id: "picks", text: "כמה מטלות ביום זה ריאלי בשבילכם?",
-                      why: "עדיף לסיים מעט מאשר לגרור רשימה ארוכה. לפי זה אתריע כשהיום עמוס מדי.",
-                      options: [("2", "שתיים"), ("3", "שלוש"), ("5", "חמש")]),
         CoachQuestion(id: "evening", text: "מתי נוח לכם לתכנן את מחר?",
                       why: "תכנון של דקה בערב הוא ההרגל שהכי משפר את היום שאחריו.",
                       options: [("20:30", "20:30"), ("21:30", "21:30"), ("22:30", "22:30"), ("off", "בלי תזכורת")]),
@@ -145,8 +142,6 @@ enum Coach {
         return questions.first { answer($0.id) == nil }
     }
 
-    static var dailyPicks: Int { Int(answer("picks") ?? "") ?? 3 }
-
     private static func minute(_ text: String?) -> Int? {
         guard let parts = text?.split(separator: ":").compactMap({ Int($0) }), parts.count == 2 else { return nil }
         return parts[0] * 60 + parts[1]
@@ -167,13 +162,15 @@ enum Coach {
         var result: [CoachInsight] = []
         let calendar = Calendar.current
         let open = tasks.filter { !$0.isDone && !$0.removed }
-        let today = open.filter(\.isForToday)
 
-        if today.count > dailyPicks + 1 {
+        // How the family's own estimates turn out, once enough tasks showed it.
+        if DayJournal.hasLearnedFactor, DayJournal.factor >= 1.15 {
+            let times: String = DayJournal.factor.formatted(.number.precision(.fractionLength(1)))
+            let kept: Int = DayJournal.likely(for: 20) ?? 25
             result.append(CoachInsight(
-                id: "overload", symbol: "scalemass.fill", artwork: Theme.amber,
-                title: "היום עמוס מדי",
-                text: "בחרתם \(today.count) מטלות להיום, והיעד שלכם הוא \(dailyPicks). מה אפשר לדחות למחר בלב שלם?"))
+                id: "factor", symbol: "stopwatch.fill", artwork: Theme.blue,
+                title: "מטלות לוקחות לכם פי \(times) מההערכה",
+                text: "כך אצל כמעט כולם, וזה כבר בחשבון: למטלה שנתתם לה 20 דקות נשמרות ביום \(kept) דקות."))
         }
 
         let due = ShoppingMemory.due(shopping)
@@ -199,15 +196,48 @@ enum Coach {
             }
         }
 
-        let weekDone = (0..<7).reduce(0) { sum, offset in
-            let day = calendar.date(byAdding: .day, value: -offset, to: .now) ?? .now
-            return sum + (Stats.doneByDay[DayKey.of(day)] ?? 0)
+        // Days that were planned, and how many of them ended whole.
+        let recent = DayJournal.recentDays
+        if recent.planned >= 4 {
+            if recent.full * 2 >= recent.planned {
+                result.append(CoachInsight(
+                    id: "fullDays", symbol: "checkmark.seal.fill", artwork: Theme.emerald,
+                    title: "\(recent.full) ימים נסגרו עד הסוף",
+                    text: "מתוך \(recent.planned) הימים האחרונים שתכננתם. תכנון במידה עובד: מעט, ועד הסוף."))
+            } else if recent.full * 4 <= recent.planned {
+                result.append(CoachInsight(
+                    id: "pace", symbol: "tortoise.fill", artwork: Theme.violet,
+                    title: "ברוב הימים נשאר משהו פתוח",
+                    text: "ב־\(recent.planned - recent.full) מתוך \(recent.planned) הימים האחרונים. נסו לבחור בבוקר מטלה אחת פחות: יום שנסגר כולו שווה יותר מרשימה ארוכה."))
+            }
         }
-        if weekDone > 0, Double(weekDone) / 6 < Double(dailyPicks) * 0.5, open.count > 3 {
+
+        // How the days felt, next to how much they were asked to hold.
+        var heavy: [Int] = []
+        var good: [Int] = []
+        var felt = 0
+        for back in 1...14 {
+            guard let day = calendar.date(byAdding: .day, value: -back, to: .now),
+                  let mood = DayJournal.mood(on: day) else { continue }
+            felt += 1
+            let planned: Int = DayJournal.entry(on: day)?.planned ?? 0
+            if mood == 1 { heavy.append(planned) }
+            if mood == 3 { good.append(planned) }
+        }
+        if heavy.count >= 2, good.count >= 2 {
+            let heavyMean: Int = heavy.reduce(0, +) / heavy.count
+            let goodMean: Int = good.reduce(0, +) / good.count
+            if goodMean >= 15, Double(heavyMean) >= Double(goodMean) * 1.25 {
+                result.append(CoachInsight(
+                    id: "heavyDays", symbol: "scalemass.fill", artwork: Theme.amber,
+                    title: "הימים הכבדים הם הימים העמוסים",
+                    text: "בימים שסימנתם ככבדים תוכננו בממוצע \(NowStatus.duration(heavyMean)) של מטלות, ובימים הטובים \(NowStatus.duration(goodMean)). זו המידה שעושה לכם טוב."))
+            }
+        } else if felt >= 5, heavy.count * 2 >= felt {
             result.append(CoachInsight(
-                id: "pace", symbol: "tortoise.fill", artwork: Theme.violet,
-                title: "קצב אמיתי: \(weekDone) מטלות בשבוע",
-                text: "זה פחות ממה שתכננתם, וזה בסדר. נסו לבחור מטלה אחת פחות בכל יום ולסיים את כולן."))
+                id: "heavyWeek", symbol: "cloud.fill", artwork: Artwork(0x64748B, 0x334155),
+                title: "הרבה ימים כבדים לאחרונה",
+                text: "\(heavy.count) מתוך \(felt) הימים שסימנתם. אולי התקופה הזו מבקשת פחות: יום עם מטלה אחת חשובה הוא יום טוב."))
         }
 
         let stale = open.filter { item in
@@ -220,22 +250,32 @@ enum Coach {
                 text: "מטלה שלא זזה היא בדרך כלל גדולה מדי או לא באמת חשובה. לפרק לצעד של שתי דקות, לתזמן, או למחוק."))
         }
 
-        let last14 = (0..<14).compactMap { calendar.date(byAdding: .day, value: -$0, to: .now) }
-            .filter { calendar.component(.weekday, from: $0) != 7 }
-        let tracked = habits.filter { !$0.removed && !$0.days.isEmpty }
-        if let weakest = tracked.min(by: { rate($0, last14) < rate($1, last14) }), tracked.count >= 2,
-           rate(weakest, last14) < 0.5 {
-            let kept = last14.filter { weakest.isDone(on: $0) }.count
+        // The practices that are measured, by how steadily each is kept.
+        var measured: [(habit: Habit, strength: Habit.Strength)] = []
+        for habit in habits where !habit.removed && !habit.isQuiet {
+            let strength: Habit.Strength = habit.strength()
+            if strength.counted >= 6 { measured.append((habit, strength)) }
+        }
+        if let weakest = measured.min(by: { $0.strength.share < $1.strength.share }), measured.count >= 2,
+           weakest.strength.share < 0.6 {
+            let counts: String = "נשמרה ב־\(weakest.strength.kept) מתוך \(weakest.strength.counted) ימים שנספרו. "
+            var advice: String = "קביעות נתפסת כשהיא נשענת על משהו שכבר קורה: בדף שלה אפשר לקבוע אחרי מה היא באה."
+            if !weakest.habit.anchor.isEmpty {
+                advice = weakest.habit.small.isEmpty
+                    ? "קבעו לה גרסה קטנה, של שתי דקות, שנחשבת גם ביום הכי עמוס."
+                    : "אולי העוגן שלה לא מתאים. נסו להצמיד אותה לרגע אחר ביום."
+            }
             result.append(CoachInsight(
                 id: "weakHabit", symbol: "arrow.up.heart.fill", artwork: Theme.pink,
-                title: "״\(weakest.title)״ צריך חיזוק",
-                text: "נשמר \(kept) מתוך \(last14.count) ימי החול האחרונים. הרגל נתפס כשמצמידים אותו לשעה קבועה בלו״ז."))
+                title: "\(weakest.habit.title): מה יחזיק אותה?",
+                text: counts + advice))
         }
-        if let strongest = tracked.max(by: { $0.streak < $1.streak }), strongest.streak >= 5 {
+        if let strongest = measured.max(by: { $0.strength.share < $1.strength.share }),
+           strongest.strength.share >= 0.9, strongest.strength.counted >= 12 {
             result.append(CoachInsight(
-                id: "strongHabit", symbol: "flame.fill", artwork: Theme.amber,
-                title: "\(strongest.streak) ימים ברצף: \(strongest.title)",
-                text: "זה כבר חלק מכם. הרצף הזה שווה שמירה גם ביום עמוס."))
+                id: "strongHabit", symbol: "checkmark.seal.fill", artwork: strongest.habit.artwork,
+                title: "\(strongest.habit.title) כבר חלק מכם",
+                text: "נשמרה ב־\(strongest.strength.kept) מתוך \(strongest.strength.counted) ימים שנספרו בארבעת השבועות האחרונים. קביעות כזו מחזיקה גם ביום עמוס."))
         }
 
         if let book = books.first(where: { !$0.isFinished && !$0.removed }) {
@@ -252,11 +292,6 @@ enum Coach {
             }
         }
         return result
-    }
-
-    private static func rate(_ habit: Habit, _ days: [Date]) -> Double {
-        guard !days.isEmpty else { return 1 }
-        return Double(days.filter { habit.isDone(on: $0) }.count) / Double(days.count)
     }
 }
 

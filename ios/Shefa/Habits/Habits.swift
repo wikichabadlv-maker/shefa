@@ -1,6 +1,23 @@
 import SwiftData
 import SwiftUI
 
+/// Days the family set aside: a trip, an illness, a simcha. Nothing is
+/// expected of the daily practices on such a day, and nothing is counted.
+enum OffDays {
+    private static let key = "coach.offDays"
+
+    static var all: Set<String> { DayKey.split(UserDefaults.standard.string(forKey: key) ?? "") }
+
+    static func isOff(_ date: Date = .now) -> Bool { all.contains(DayKey.of(date)) }
+
+    static func set(_ isOff: Bool, on date: Date = .now) {
+        var days: Set<String> = all
+        let day: String = DayKey.of(date)
+        if isOff { days.insert(day) } else { days.remove(day) }
+        UserDefaults.standard.set(DayKey.join(days, keep: 200), forKey: key)
+    }
+}
+
 /// A daily practice to keep, such as morning prayers or a fixed study time.
 /// Personal to this phone: it is not shared with the other phone.
 @Model
@@ -14,6 +31,13 @@ final class Habit {
     var doneDays: String = ""
     var createdAt: Date
     var removed: Bool = false
+    /// What it comes after, in the family's own words: "אחרי שחרית". A
+    /// practice holds when it leans on something that already happens.
+    var anchor: String = ""
+    /// The small form that still counts on a hard day: "משנה אחת".
+    var small: String = ""
+    /// Marked, but never measured or reminded of. The prayers are like this.
+    var isQuiet: Bool = false
 
     init(id: String = UUID().uuidString, title: String, symbol: String, palette: Int, order: Int) {
         self.id = id
@@ -39,7 +63,147 @@ final class Habit {
         doneDays = DayKey.join(all, keep: 400)
     }
 
-    var streak: Int { DayKey.streak(days, skipShabbat: true) }
+    // MARK: Consistency
+
+    /// How a practice stood on one day.
+    enum DayMark {
+        case kept
+        /// Missed, and covered by the week's one free miss.
+        case forgiven
+        case missed
+        /// Shabbat, a festival, a fast or a day set aside: not counted.
+        case free
+        /// Before the practice began, today while it is still open, or a day ahead.
+        case blank
+    }
+
+    /// How steadily a practice is kept over four weeks. One miss a week is
+    /// not counted, and neither are days of rest, so a single bad day never
+    /// throws the number away.
+    struct Strength {
+        /// From 0 to 1: the days it was kept, out of the days that count.
+        let share: Double
+        let kept: Int
+        let missed: Int
+        /// Misses that the week allowed, and so are not counted.
+        let forgiven: Int
+        /// Four weeks from Sunday to Shabbat, the current week last.
+        let marks: [DayMark]
+        /// Where today is among the marks.
+        let todayIndex: Int
+        /// This week's free miss has not been used.
+        let hasReserve: Bool
+        /// Kept today after a day that was missed: the moment that matters most.
+        let isBack: Bool
+
+        /// The days that count: kept or missed.
+        var counted: Int { kept + missed }
+
+        /// Too few days were counted for the number to say anything.
+        var isNew: Bool { counted < 3 }
+
+        var percent: String { share.formatted(.percent.precision(.fractionLength(0))) }
+    }
+
+    func strength(now: Date = .now) -> Strength {
+        let calendar = Calendar.current
+        let kept: Set<String> = days
+        let off: Set<String> = OffDays.all
+        let begins: Date = calendar.startOfDay(for: createdAt)
+        let today: Date = calendar.startOfDay(for: now)
+        let todayIndex: Int = 21 + calendar.component(.weekday, from: today) - 1
+        var marks: [DayMark] = []
+        var keptCount = 0
+        var missed = 0
+        var forgiven = 0
+        var weekUsed: [Bool] = [false, false, false, false]
+        var lastCounted: DayMark?
+        for index in 0..<28 {
+            guard index <= todayIndex,
+                  let day = calendar.date(byAdding: .day, value: index - todayIndex, to: today) else {
+                marks.append(.blank)
+                continue
+            }
+            let key: String = DayKey.of(day)
+            var mark: DayMark = .missed
+            if kept.contains(key) {
+                mark = .kept
+            } else if day < begins || index == todayIndex {
+                mark = .blank
+            } else if off.contains(key) || JewishDay.of(day).isNeutral {
+                mark = .free
+            } else if !weekUsed[index / 7] {
+                // The first miss of a week is the one the week allows.
+                weekUsed[index / 7] = true
+                mark = .forgiven
+            }
+            switch mark {
+            case .kept: keptCount += 1
+            case .forgiven: forgiven += 1
+            case .missed: missed += 1
+            case .free, .blank: break
+            }
+            let isCounted: Bool = mark == .kept || mark == .forgiven || mark == .missed
+            if index < todayIndex && isCounted { lastCounted = mark }
+            marks.append(mark)
+        }
+        let counted: Int = keptCount + missed
+        let share: Double = counted > 0 ? Double(keptCount) / Double(counted) : 0
+        let wasMissed: Bool = lastCounted == .missed || lastCounted == .forgiven
+        let cameBack: Bool = kept.contains(DayKey.of(today)) && wasMissed
+        return Strength(share: share, kept: keptCount, missed: missed, forgiven: forgiven,
+                        marks: marks, todayIndex: todayIndex, hasReserve: !weekUsed[3], isBack: cameBack)
+    }
+
+    /// The day a mark stands for.
+    static func day(at index: Int, in strength: Strength, now: Date = .now) -> Date {
+        let calendar = Calendar.current
+        let today: Date = calendar.startOfDay(for: now)
+        let day: Date = calendar.date(byAdding: .day, value: index - strength.todayIndex, to: today) ?? today
+        // Noon, so the day stays the same whatever the hour.
+        return calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day
+    }
+
+    /// One number for several practices; nil while there is too little to say.
+    static func average(_ all: [Strength]) -> Double? {
+        let known: [Strength] = all.filter { !$0.isNew }
+        guard !known.isEmpty else { return nil }
+        var sum: Double = 0
+        for one in known { sum += one.share }
+        return sum / Double(known.count)
+    }
+
+    /// The consistency of the practices that are measured, taken together.
+    static func strength(of habits: [Habit], now: Date = .now) -> Double? {
+        average(habits.filter { !$0.removed && !$0.isQuiet }.map { $0.strength(now: now) })
+    }
+
+    /// The name of a day that the calendar itself sets apart.
+    static func restNote(on day: Date = .now) -> String? {
+        let kind: JewishDay = JewishDay.of(day)
+        if let yomTov = kind.yomTov { return yomTov }
+        if kind.isShabbat { return "שבת קודש" }
+        return kind.fast
+    }
+
+    /// Why today is not counted, when it is not.
+    static func freeNote(on day: Date = .now) -> String? {
+        if let rest = restNote(on: day) { return rest }
+        return OffDays.isOff(day) ? "יום חריג" : nil
+    }
+
+    private static let prayers = ["habit-shacharit", "habit-mincha", "habit-arvit"]
+    private static let quietKey = "quietPrayers"
+
+    /// The prayers are marked but not measured, unless the family says
+    /// otherwise. Done once for a phone that had them before this was so.
+    private static func quietPrayersIfNeeded(in context: ModelContext) {
+        guard !UserDefaults.standard.bool(forKey: quietKey) else { return }
+        let habits = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
+        for habit in habits where prayers.contains(habit.id) { habit.isQuiet = true }
+        try? context.save()
+        UserDefaults.standard.set(true, forKey: quietKey)
+    }
 
     /// Added later at the family's request: mikveh first in the morning, and
     /// the Chitas pillar named without "and Tehillim".
@@ -59,7 +223,10 @@ final class Habit {
     static func addDefaultsIfNeeded(in context: ModelContext) {
         let key = "addedDefaultHabits"
         addMikvehIfNeeded(in: context)
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        guard !UserDefaults.standard.bool(forKey: key) else {
+            quietPrayersIfNeeded(in: context)
+            return
+        }
         let defaults: [(String, String, String, Int)] = [
             ("shacharit", "שחרית", "sunrise.fill", 4),
             ("torah", "קביעות לתורה", "book.fill", 0),
@@ -69,17 +236,13 @@ final class Habit {
             ("arvit", "ערבית וק״ש", "moon.stars.fill", 7),
         ]
         for (index, item) in defaults.enumerated() {
-            context.insert(Habit(id: "habit-" + item.0, title: item.1, symbol: item.2, palette: item.3, order: index))
+            let habit = Habit(id: "habit-" + item.0, title: item.1, symbol: item.2, palette: item.3, order: index)
+            habit.isQuiet = prayers.contains(habit.id)
+            context.insert(habit)
         }
         try? context.save()
         UserDefaults.standard.set(true, forKey: key)
-    }
-
-    /// Days in a row on which every habit was kept.
-    static func fullStreak(_ habits: [Habit]) -> Int {
-        guard var common = habits.first?.days else { return 0 }
-        for habit in habits.dropFirst() { common.formIntersection(habit.days) }
-        return DayKey.streak(common, skipShabbat: true)
+        UserDefaults.standard.set(true, forKey: quietKey)
     }
 }
 
@@ -90,231 +253,10 @@ extension Habit {
     static func celebrateIfDayFull(in context: ModelContext) -> Bool {
         let all: [Habit] = ((try? context.fetch(FetchDescriptor<Habit>())) ?? []).filter { !$0.removed }
         guard all.count > 1, all.allSatisfy({ $0.isDone() }) else { return false }
-        let streak: Int = fullStreak(all)
-        return Moments.shared.play(
-            "habits", symbol: "sparkles", title: "יום מלא",
-            text: streak > 1 ? "כל קביעויות היום נשמרו. \(streak) ימים ברצף." : "כל קביעויות היום נשמרו.",
-            artwork: Theme.emerald)
-    }
-}
-
-/// Today's practices as round buttons, with the count and the streak.
-struct HabitsCard: View {
-    @Environment(\.modelContext) private var context
-    @Query(filter: #Predicate<Habit> { !$0.removed }, sort: \Habit.order) private var habits: [Habit]
-    @State private var isEditing = false
-    /// Rises by one for a practice each time it is kept, to throw its sparks.
-    @State private var sparks: [String: Int] = [:]
-
-    private var done: Int { habits.filter { $0.isDone() }.count }
-
-    private var line: String {
-        let left = habits.count - done
-        if habits.isEmpty { return "" }
-        if left == 0 { return "יום מלא. כל הכבוד!" }
-        if left == 1 { return "עוד אחת והיום שלם" }
-        if done == 0 {
-            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now
-            let missedYesterday = !habits.contains { $0.isDone(on: yesterday) }
-            return missedYesterday ? "מתחילים מחדש. צעד אחד קטן מספיק" : "מתחילים עם הראשונה"
+        var text: String = "כל קביעויות היום נשמרו."
+        if let share = strength(of: all), share >= 0.7 {
+            text += " העקביות שלכם בארבעת השבועות האחרונים: \(share.formatted(.percent.precision(.fractionLength(0))))."
         }
-        return "\(done) מתוך \(habits.count) כבר מאחוריכם"
-    }
-
-    var body: some View {
-        let streak = Habit.fullStreak(habits)
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("קביעות היום")
-                    .font(.system(size: 20, weight: .heavy))
-                Text("\(done)/\(habits.count)")
-                    .font(.system(size: 15, weight: .heavy))
-                    .monospacedDigit()
-                    .foregroundStyle(done == habits.count && !habits.isEmpty ? Theme.accent : Color.secondary)
-                Spacer()
-                if streak > 1 {
-                    Label("\(streak) ימים ברצף", systemImage: "flame.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color(hex: 0xEA580C))
-                }
-                Button("עריכה") { isEditing = true }
-                    .font(.system(size: 14, weight: .bold))
-            }
-
-            if habits.isEmpty {
-                Text("הוסיפו את הדברים שחשוב לכם לשמור עליהם כל יום.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-            } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 12) {
-                    ForEach(habits) { habit in
-                        button(habit)
-                    }
-                }
-                GrowBar(share: Double(done) / Double(max(habits.count, 1)), height: 6,
-                        fill: Theme.emerald.gradient)
-                    .animation(.smooth(duration: 0.4), value: done)
-                Text(line)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
-        .sheet(isPresented: $isEditing) {
-            HabitsSheet()
-        }
-    }
-
-    private func button(_ habit: Habit) -> some View {
-        let isDone = habit.isDone()
-        return Button {
-            withAnimation(.spring(duration: 0.35, bounce: 0.3)) { habit.toggle() }
-            try? context.save()
-            if isDone {
-                Feedback.tap()
-            } else {
-                sparks[habit.id, default: 0] += 1
-                if !Habit.celebrateIfDayFull(in: context) { Feedback.done() }
-            }
-        } label: {
-            VStack(spacing: 6) {
-                ZStack {
-                    SparkBurst(trigger: sparks[habit.id] ?? 0, color: habit.artwork.start, reach: 20, radius: 31)
-                    Circle()
-                        .fill(isDone ? AnyShapeStyle(habit.artwork.gradient) : AnyShapeStyle(Theme.chip))
-                        .frame(width: 54, height: 54)
-                    Image(systemName: isDone ? "checkmark" : habit.symbol)
-                        .font(.system(size: 21, weight: .bold))
-                        .foregroundStyle(isDone ? Color.white : Color.secondary)
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .scaleEffect(isDone ? 1.0 : 0.94)
-                Text(habit.title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isDone ? Color.primary : Color.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.pressable)
-        .accessibilityLabel(habit.title)
-        .accessibilityAddTraits(isDone ? .isSelected : [])
-    }
-}
-
-/// The list of practices: the last week at a glance, add, rename and delete.
-struct HabitsSheet: View {
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<Habit> { !$0.removed }, sort: \Habit.order) private var habits: [Habit]
-    @State private var newTitle = ""
-    @State private var renaming: Habit?
-    @State private var renameText = ""
-
-    private var week: [Date] {
-        (0..<7).reversed().compactMap { Calendar.current.date(byAdding: .day, value: -$0, to: .now) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(habits) { habit in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 10) {
-                                ArtworkIcon(artwork: habit.artwork, symbol: habit.symbol, size: 34)
-                                Text(habit.title)
-                                    .font(.system(size: 16, weight: .bold))
-                                Spacer()
-                                if habit.streak > 0 {
-                                    Label("\(habit.streak)", systemImage: "flame.fill")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundStyle(Color(hex: 0xEA580C))
-                                }
-                            }
-                            HStack(spacing: 6) {
-                                ForEach(week, id: \.self) { day in
-                                    let isDone = habit.isDone(on: day)
-                                    let index = Calendar.current.component(.weekday, from: day) - 1
-                                    Button {
-                                        habit.toggle(on: day)
-                                        try? context.save()
-                                    } label: {
-                                        Text(ScheduleItem.dayLetters[index])
-                                            .font(.system(size: 13, weight: .bold))
-                                            .frame(maxWidth: .infinity, minHeight: 32)
-                                            .foregroundStyle(isDone ? Color.white : Color.secondary)
-                                            .background(isDone ? AnyShapeStyle(habit.artwork.gradient) : AnyShapeStyle(Theme.chip),
-                                                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                                    }
-                                    .buttonStyle(.pressable)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 4)
-                        .swipeActions {
-                            Button("מחיקה", systemImage: "trash", role: .destructive) {
-                                habit.removed = true
-                                try? context.save()
-                            }
-                            Button("שם", systemImage: "pencil") {
-                                renameText = habit.title
-                                renaming = habit
-                            }
-                        }
-                    }
-                } footer: {
-                    Text("אפשר לסמן גם ימים קודמים בשבוע האחרון. שבת לא שוברת רצף. החלקה על שורה מאפשרת לשנות שם או למחוק.")
-                }
-
-                Section("קביעות חדשה") {
-                    HStack {
-                        TextField("למשל: רמב״ם יומי", text: $newTitle)
-                            .onSubmit { add() }
-                        Button("הוספה") { add() }
-                            .disabled(newTitle.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
-            }
-            .navigationTitle("הקביעויות שלי")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("סיום") { dismiss() }
-                }
-            }
-            .alert("שינוי שם", isPresented: isRenaming) {
-                TextField("שם", text: $renameText)
-                Button("שמירה") {
-                    let text = renameText.trimmingCharacters(in: .whitespaces)
-                    if let habit = renaming, !text.isEmpty {
-                        habit.title = text
-                        try? context.save()
-                    }
-                    renaming = nil
-                }
-                Button("ביטול", role: .cancel) {}
-            }
-        }
-        .environment(\.layoutDirection, .rightToLeft)
-    }
-
-    private var isRenaming: Binding<Bool> {
-        Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })
-    }
-
-    private func add() {
-        let text = newTitle.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        let symbols = ["star.fill", "book.fill", "heart.fill", "figure.walk", "leaf.fill", "drop.fill"]
-        context.insert(Habit(title: text, symbol: symbols[habits.count % symbols.count],
-                             palette: habits.count, order: (habits.map(\.order).max() ?? -1) + 1))
-        try? context.save()
-        newTitle = ""
-        Feedback.added()
+        return Moments.shared.play("habits", symbol: "sparkles", title: "יום מלא", text: text, artwork: Theme.emerald)
     }
 }

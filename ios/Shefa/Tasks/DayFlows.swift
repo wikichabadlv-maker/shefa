@@ -678,7 +678,7 @@ struct PlanDayFlow: View {
                 .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
             if firstMinute == nil {
-                Text("בחרו מתי ואיפה. משפט אחד כזה מכפיל את הסיכוי שזה יקרה.")
+                Text("בחרו מתי ואיפה. משפט אחד כזה מעלה מאוד את הסיכוי שזה יקרה.")
                     .font(.system(size: 13, weight: .medium))
                     .opacity(0.92)
                     .fixedSize(horizontal: false, vertical: true)

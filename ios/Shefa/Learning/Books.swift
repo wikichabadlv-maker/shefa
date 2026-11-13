@@ -108,7 +108,7 @@ struct BooksView: View {
     private var finished: [Book] { books.filter(\.isFinished) }
 
     private var streak: Int {
-        DayKey.streak(books.reduce(into: Set<String>()) { $0.formUnion($1.days) }, skipShabbat: true)
+        DayKey.streak(books.reduce(into: Set<String>()) { $0.formUnion($1.days) }, skipNeutral: true)
     }
 
     var body: some View {

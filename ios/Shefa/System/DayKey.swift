@@ -24,17 +24,21 @@ enum DayKey {
     }
 
     /// How many days in a row, ending today or yesterday, are in the set.
-    /// Shabbat neither adds to the count nor breaks it when `skipShabbat` is on.
-    static func streak(_ days: Set<String>, skipShabbat: Bool = false, now: Date = .now) -> Int {
+    /// With `skipNeutral`, a Shabbat, a festival, a fast or a day the family
+    /// set aside neither adds to the count nor breaks it.
+    static func streak(_ days: Set<String>, skipNeutral: Bool = false, now: Date = .now) -> Int {
         let calendar = Calendar.current
+        let off: Set<String> = skipNeutral ? OffDays.all : []
         var count = 0
+        var passed = 0
         var day = now
         var isFirst = true
-        while count < 1000 {
-            let isShabbat = calendar.component(.weekday, from: day) == 7
-            if days.contains(of(day)) {
+        while count < 1000 && passed < 1500 {
+            let key: String = of(day)
+            passed += 1
+            if days.contains(key) {
                 count += 1
-            } else if skipShabbat && isShabbat {
+            } else if skipNeutral && (off.contains(key) || JewishDay.of(day).isNeutral) {
                 // Not counted, not broken.
             } else if !isFirst {
                 break
@@ -65,7 +69,7 @@ enum Stats {
     static var doneToday: Int { doneByDay[DayKey.of()] ?? 0 }
 
     static var streak: Int {
-        DayKey.streak(Set(doneByDay.filter { $0.value > 0 }.keys), skipShabbat: true)
+        DayKey.streak(Set(doneByDay.filter { $0.value > 0 }.keys), skipNeutral: true)
     }
 
     static var total: Int { doneByDay.values.reduce(0, +) }

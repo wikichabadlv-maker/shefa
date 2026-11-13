@@ -12,6 +12,8 @@ struct BackupBlob: Codable {
     struct HabitCopy: Codable {
         var id: String, title: String, symbol: String, palette: Int, order: Int
         var doneDays: String, createdMs: Int64, removed: Bool
+        /// Added later, so a package saved before them still opens.
+        var anchor: String?, small: String?, isQuiet: Bool?
     }
 
     struct BookCopy: Codable {
@@ -83,7 +85,8 @@ final class Backup {
         }
         blob.habits = ((try? context.fetch(FetchDescriptor<Habit>(sortBy: [SortDescriptor(\.id)]))) ?? []).map {
             .init(id: $0.id, title: $0.title, symbol: $0.symbol, palette: $0.palette, order: $0.order,
-                  doneDays: $0.doneDays, createdMs: SharedSync.stamp($0.createdAt), removed: $0.removed)
+                  doneDays: $0.doneDays, createdMs: SharedSync.stamp($0.createdAt), removed: $0.removed,
+                  anchor: $0.anchor, small: $0.small, isQuiet: $0.isQuiet)
         }
         blob.books = ((try? context.fetch(FetchDescriptor<Book>(sortBy: [SortDescriptor(\.id)]))) ?? []).map {
             .init(id: $0.id, title: $0.title, author: $0.author, totalPages: $0.totalPages, page: $0.page,
@@ -120,13 +123,23 @@ final class Backup {
             if let mine = habits.first(where: { $0.id == copy.id }) {
                 mine.doneDays = DayKey.join(mine.days.union(DayKey.split(copy.doneDays)), keep: 400)
                 mine.title = copy.title
+                mine.symbol = copy.symbol
+                mine.palette = copy.palette
                 mine.order = copy.order
                 mine.removed = copy.removed
+                // The practice began when it first began, on whichever phone.
+                mine.createdAt = min(mine.createdAt, SharedSync.date(copy.createdMs))
+                if let anchor = copy.anchor { mine.anchor = anchor }
+                if let small = copy.small { mine.small = small }
+                if let isQuiet = copy.isQuiet { mine.isQuiet = isQuiet }
             } else {
                 let habit = Habit(id: copy.id, title: copy.title, symbol: copy.symbol, palette: copy.palette, order: copy.order)
                 habit.doneDays = copy.doneDays
                 habit.createdAt = SharedSync.date(copy.createdMs)
                 habit.removed = copy.removed
+                habit.anchor = copy.anchor ?? ""
+                habit.small = copy.small ?? ""
+                habit.isQuiet = copy.isQuiet ?? false
                 context.insert(habit)
             }
         }

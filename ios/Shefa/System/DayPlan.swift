@@ -40,8 +40,10 @@ struct PlannedTask: Identifiable {
 enum DayJournal {
     private static let logKey = "coach.planByDay"
     private static let samplesKey = "coach.taskSamples"
-    private static let plannedKey = "coach.plannedDay"
-    private static let closedKey = "coach.closedDay"
+    private static let plannedKey = "coach.plannedDays"
+    private static let closedKey = "coach.closedDays"
+    private static let askedKey = "coach.closeAsked"
+    private static let restKey = "coach.closeRest"
     private static let moodKey = "coach.moodByDay"
     private static let lateKey = "coach.lateDay"
     private static let intentionKey = "coach.intention"
@@ -85,6 +87,13 @@ enum DayJournal {
         guard recent.count >= 5 else { return nil }
         let sorted: [Int] = recent.sorted()
         return sorted[sorted.count / 2]
+    }
+
+    /// What was planned for a day and what of it was done, in minutes; nil
+    /// when nothing was written down for it.
+    static func entry(on day: Date) -> (planned: Int, done: Int)? {
+        guard let value = log[DayKey.of(day)], let planned = value["p"] else { return nil }
+        return (planned, value["d"] ?? 0)
     }
 
     /// How many days were planned and how many of them ended with
@@ -155,11 +164,46 @@ enum DayJournal {
 
     // MARK: The day's two moments
 
-    static var isPlannedToday: Bool { store.string(forKey: plannedKey) == DayKey.of() }
-    static func markPlanned() { store.set(DayKey.of(), forKey: plannedKey) }
+    private static func days(_ key: String) -> Set<String> {
+        DayKey.split(store.string(forKey: key) ?? "")
+    }
 
-    static var isClosedToday: Bool { store.string(forKey: closedKey) == DayKey.of() }
-    static func markClosed() { store.set(DayKey.of(), forKey: closedKey) }
+    private static func addToday(_ key: String) {
+        var all: Set<String> = days(key)
+        all.insert(DayKey.of())
+        store.set(DayKey.join(all, keep: 60), forKey: key)
+    }
+
+    static var isPlannedToday: Bool { days(plannedKey).contains(DayKey.of()) }
+    static func markPlanned() { addToday(plannedKey) }
+
+    static var isClosedToday: Bool { days(closedKey).contains(DayKey.of()) }
+    static func markClosed() { addToday(closedKey) }
+
+    /// Writes down the evenings on which the reminder to close the day goes out.
+    static func noteEveningAsked(_ evenings: [Date]) {
+        let today: String = DayKey.of()
+        // The days still ahead are written again by every rebuild.
+        var all: Set<String> = days(askedKey).filter { $0 < today }
+        for day in evenings { all.insert(DayKey.of(day)) }
+        store.set(DayKey.join(all, keep: 30), forKey: askedKey)
+    }
+
+    /// The reminder to close the day rests for a week after three evenings
+    /// in a row on which it went out and the day was left open. Then it
+    /// tries again.
+    static func eveningRests(now: Date = .now) -> Bool {
+        let today: String = DayKey.of(now)
+        let until: String = store.string(forKey: restKey) ?? ""
+        if !until.isEmpty && today <= until { return true }
+        let closed: Set<String> = days(closedKey)
+        let asked: [String] = days(askedKey).filter { $0 < today && $0 > until }.sorted()
+        let last: [String] = Array(asked.suffix(3))
+        guard last.count == 3, !last.contains(where: { closed.contains($0) }) else { return false }
+        let end: Date = Calendar.current.date(byAdding: .day, value: 7, to: now) ?? now
+        store.set(DayKey.of(end), forKey: restKey)
+        return true
+    }
 
     /// The family accepted that today ends late, so the day stays open
     /// until half past eleven.
@@ -441,7 +485,8 @@ struct DayPlan {
     /// One sentence that says how the day stands.
     var sentence: String {
         let planned: String = NowStatus.duration(plannedMinutes)
-        let room: String = NowStatus.duration(roomMinutes)
+        // Said in round numbers: the room is an estimate.
+        let room: String = NowStatus.duration((roomMinutes / 5) * 5)
         switch load {
         case .rest:
             let after: String = kind.isShabbat ? "שבת" : "החג"

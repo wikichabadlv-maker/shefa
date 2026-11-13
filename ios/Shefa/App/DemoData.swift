@@ -42,8 +42,7 @@ enum DemoData {
         context.insert(finished)
         if Stats.doneToday == 0 { Stats.addDone(1) }
         fillJournal()
-        let habits = (try? context.fetch(FetchDescriptor<Habit>())) ?? []
-        for habit in habits.prefix(2) where !habit.isDone() { habit.toggle() }
+        fillHabits((try? context.fetch(FetchDescriptor<Habit>())) ?? [])
         for title in ["חלב", "ביצים", "חלות לשבת", "נרות"] {
             context.insert(ListItem(kind: ListItem.shopping, title: title))
         }
@@ -120,6 +119,42 @@ enum DemoData {
         fillHistory(context)
         fillBank(context)
         try? context.save()
+    }
+
+    /// A few weeks of the daily practices: mostly kept, a miss here and there,
+    /// one that is back today after a miss, and one that is still being built.
+    private static func fillHabits(_ habits: [Habit]) {
+        let calendar = Calendar.current
+        let began: Date = calendar.date(byAdding: .day, value: -45, to: .now) ?? .now
+        // The days back on which each practice was missed.
+        let missed: [String: Set<Int>] = [
+            "habit-mikveh": [6, 20, 21],
+            "habit-torah": [1, 8, 9, 16],
+            "habit-chitas": [5, 12],
+            "habit-mincha": [8],
+            "habit-tzedakah": [2, 4, 6, 7, 9, 11, 14, 15, 18, 20, 22, 23],
+            "habit-arvit": [6, 19],
+        ]
+        let keptToday: Set<String> = ["habit-mikveh", "habit-shacharit", "habit-torah"]
+        for habit in habits {
+            habit.createdAt = began
+            let skip: Set<Int> = missed[habit.id] ?? []
+            var days: Set<String> = []
+            for back in 1...40 where !skip.contains(back) {
+                guard let day = calendar.date(byAdding: .day, value: -back, to: .now),
+                      !JewishDay.of(day).isRest else { continue }
+                days.insert(DayKey.of(day))
+            }
+            if keptToday.contains(habit.id) { days.insert(DayKey.of()) }
+            habit.doneDays = DayKey.join(days, keep: 400)
+        }
+        if let torah = habits.first(where: { $0.id == "habit-torah" }) {
+            torah.anchor = "אחרי שחרית"
+            torah.small = "משנה אחת"
+        }
+        if let chitas = habits.first(where: { $0.id == "habit-chitas" }) {
+            chitas.anchor = "אחרי שחרית"
+        }
     }
 
     /// What the app would have learned from a few weeks of the family's days:

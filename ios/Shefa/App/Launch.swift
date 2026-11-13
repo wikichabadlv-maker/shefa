@@ -113,4 +113,14 @@ final class AppRouter {
     /// The morning sitting that builds the day, and the evening one that closes it.
     var isPlanningDay = false
     var isClosingDay = false
+
+    /// Where a tapped reminder leads.
+    func open(_ place: String) {
+        switch place {
+        case "plan": isPlanningDay = true
+        case "close": isClosingDay = true
+        case "now": isNowPlaying = true
+        default: break
+        }
+    }
 }

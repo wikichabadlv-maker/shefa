@@ -249,7 +249,8 @@ struct DayRingHero: View {
         if canStart || planDay != nil || closeDay != nil {
             HStack(spacing: 8) {
                 if let first, let start {
-                    pill("התחלה: " + first.title, symbol: "play.fill", isMain: true, isWide: true) { start(first) }
+                    pill(first.title, symbol: "play.fill", isMain: true, isWide: true) { start(first) }
+                        .accessibilityLabel("התחלה: " + first.title)
                 }
                 if let planDay {
                     pill("בונים את היום", symbol: "sun.max.fill", isMain: !canStart, isWide: !canStart, action: planDay)
@@ -396,9 +397,12 @@ struct OverloadCard: View {
     var body: some View {
         let missing: Int = max(((plan.plannedMinutes - plan.roomMinutes + 4) / 5) * 5, 5)
         let tomorrow: String = DayPlan.name(ofComing: DayPlan.nextWorkDay())
+        // In the evening there is no later to find it out at.
+        let isLate: Bool = ScheduleItem.minute(of: .now) >= 17 * 60
+        let advice: String = isLate ? "מה באמת עוד ייעשה היום?" : "עדיף להחליט עכשיו מאשר לגלות בערב."
         let text: String = plan.freeMinutes < 10
             ? "לא נשאר היום זמן פנוי. אפשר להחליט עכשיו מה עובר הלאה."
-            : "חסרות כ־\(NowStatus.duration(missing)). עדיף להחליט עכשיו מאשר לגלות בערב."
+            : "חסרות כ־\(NowStatus.duration(missing)). " + advice
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 ArtworkIcon(artwork: Theme.amber, symbol: "scalemass.fill")

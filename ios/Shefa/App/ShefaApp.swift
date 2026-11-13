@@ -30,6 +30,7 @@ struct ShefaApp: App {
 
     init() {
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        NotificationPresenter.registerActions()
     }
 
     private var scheme: ColorScheme? {

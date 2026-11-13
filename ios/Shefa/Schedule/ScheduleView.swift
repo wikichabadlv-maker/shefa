@@ -13,7 +13,15 @@ struct ScheduleView: View {
 
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
 
-    private var todays: [ScheduleItem] { NowStatus.today(items, on: day) }
+    /// The parts of the chosen day in the order of that day's own times: a
+    /// part that follows the sun stands elsewhere on another day.
+    private var todays: [ScheduleItem] {
+        let list: [ScheduleItem] = NowStatus.today(items, on: day)
+        if isToday || !list.contains(where: { !$0.anchor.isEmpty }) { return list }
+        var starts: [String: Int] = [:]
+        for item in list { starts[item.id] = item.start(on: day) }
+        return list.sorted { (starts[$0.id] ?? 0) < (starts[$1.id] ?? 0) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -83,7 +91,8 @@ struct ScheduleView: View {
                         let isDone = item.isDone(on: day)
                         let isNow = isToday && item.startMinute <= minute && minute < item.endMinute
                         let isPast = isToday && item.endMinute <= minute
-                        row(item, isDone: isDone, isNow: isNow, isPast: isPast)
+                        let start: Int = isToday ? item.startMinute : item.start(on: day)
+                        row(item, start: start, isDone: isDone, isNow: isNow, isPast: isPast)
                             .transition(.sectionSwap)
                         if item.id != list.last?.id {
                             Divider().padding(.leading, 112)
@@ -96,13 +105,23 @@ struct ScheduleView: View {
         }
     }
 
-    private func row(_ item: ScheduleItem, isDone: Bool, isNow: Bool, isPast: Bool) -> some View {
+    /// The small line under a part's name: how long, what it follows, and
+    /// whether it is the family's own time to fill.
+    private func note(_ item: ScheduleItem) -> String {
+        var parts: [String] = [NowStatus.duration(item.durationMinutes)]
+        if let anchor = item.anchorText { parts.append(anchor) }
+        if !item.onlyDay.isEmpty { parts.append("חד פעמי") }
+        if item.holdsTasks { parts.append("זמן למטלות") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func row(_ item: ScheduleItem, start: Int, isDone: Bool, isNow: Bool, isPast: Bool) -> some View {
         HStack(spacing: 12) {
             Button {
                 editing = item
             } label: {
                 HStack(spacing: 12) {
-                    Text(ScheduleItem.clock(item.startMinute))
+                    Text(ScheduleItem.clock(start))
                         .font(.system(size: 15, weight: .bold))
                         .monospacedDigit()
                         .frame(width: 46, alignment: .leading)
@@ -112,10 +131,11 @@ struct ScheduleView: View {
                             .font(.system(size: 16, weight: .bold))
                             .strikethrough(isDone)
                             .lineLimit(1)
-                        Text(item.onlyDay.isEmpty ? NowStatus.duration(item.durationMinutes)
-                             : "\(NowStatus.duration(item.durationMinutes)) · חד פעמי")
+                        Text(note(item))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
                     }
                     Spacer(minLength: 0)
                     if isNow {
@@ -162,7 +182,13 @@ struct ScheduleView: View {
 
     private func shift(_ item: ScheduleItem, by minutes: Int) {
         withAnimation(.section) {
-            item.startMinute = min(max(item.startMinute + minutes, 0), 23 * 60 + 45)
+            if item.anchor.isEmpty {
+                item.startMinute = min(max(item.startMinute + minutes, 0), 23 * 60 + 45)
+            } else {
+                // A part that follows the sun keeps following it, a little earlier or later.
+                item.anchorOffset += minutes
+                item.startMinute = item.start(on: .now)
+            }
             item.updatedAt = .now
         }
         changed()
@@ -433,6 +459,10 @@ struct ScheduleDraft: Identifiable {
     var symbol = "clock.fill"
     var palette = 0
     var isOnce = false
+    /// A time of the day to follow, and the minutes after it.
+    var anchor = ""
+    var anchorOffset = 0
+    var holdsTasks = false
 
     init() {}
 
@@ -454,6 +484,9 @@ struct ScheduleDraft: Identifiable {
         symbol = item.symbol
         palette = item.palette
         isOnce = !item.onlyDay.isEmpty
+        anchor = item.anchor
+        anchorOffset = item.anchorOffset
+        holdsTasks = item.holdsTasks
     }
 }
 
@@ -469,6 +502,35 @@ struct ScheduleEditor: View {
                           "heart.fill", "figure.walk", "fork.knife", "moon.fill", "cart.fill",
                           "graduationcap.fill", "bed.double.fill"]
     private let durations = [10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 480]
+    private let offsets = [-120, -90, -60, -45, -30, -20, -15, -10, -5, 0, 5, 10, 15, 20, 30, 45, 60, 90, 120]
+
+    /// Whether the part follows a time of the day and not the clock.
+    private var followsSun: Binding<Bool> {
+        Binding(
+            get: { !draft.anchor.isEmpty },
+            set: { isOn in
+                if !isOn {
+                    draft.anchor = ""
+                } else if draft.anchor.isEmpty {
+                    draft.anchor = "shkia"
+                    draft.anchorOffset = -20
+                }
+            })
+    }
+
+    private func offsetText(_ minutes: Int) -> String {
+        if minutes == 0 { return "בדיוק בזמן" }
+        return "\(NowStatus.duration(abs(minutes))) \(minutes < 0 ? "לפני" : "אחרי")"
+    }
+
+    /// Where the anchor puts the start on the day being looked at.
+    private var anchoredClock: String {
+        guard let zman = Zmanim(day: day).list.first(where: { $0.id == draft.anchor }) else {
+            return "אין זמן כזה ביום הזה"
+        }
+        let minute: Int = min(max(ScheduleItem.minute(of: zman.date) + draft.anchorOffset, 0), 23 * 60 + 55)
+        return ScheduleItem.clock(minute)
+    }
 
     private var startDate: Binding<Date> {
         Binding(
@@ -483,12 +545,40 @@ struct ScheduleEditor: View {
             Form {
                 Section {
                     TextField("מה עושים? למשל חברותא", text: $draft.title)
-                    DatePicker("שעת התחלה", selection: startDate, displayedComponents: .hourAndMinute)
+                    Picker("מתי", selection: followsSun) {
+                        Text("לפי השעון").tag(false)
+                        Text("לפי זמני היום").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    if draft.anchor.isEmpty {
+                        DatePicker("שעת התחלה", selection: startDate, displayedComponents: .hourAndMinute)
+                    } else {
+                        Picker("לפי איזה זמן", selection: $draft.anchor) {
+                            ForEach(0..<ScheduleItem.anchors.count, id: \.self) { index in
+                                Text(ScheduleItem.anchors[index].title).tag(ScheduleItem.anchors[index].id)
+                            }
+                        }
+                        Picker("מתי ביחס אליו", selection: $draft.anchorOffset) {
+                            ForEach(offsets, id: \.self) { value in
+                                Text(offsetText(value)).tag(value)
+                            }
+                        }
+                        LabeledContent("ב\(HebrewDate.weekday(day)) זה יוצא", value: anchoredClock)
+                    }
                     Picker("משך", selection: $draft.duration) {
                         ForEach(durations, id: \.self) { value in
                             Text(NowStatus.duration(value)).tag(value)
                         }
                     }
+                } footer: {
+                    if !draft.anchor.isEmpty {
+                        Text("החלק הזה זז עם השמש: בכל יום הוא נקבע מחדש לפי זמני היום בעיר שלכם, בקיץ ובחורף.")
+                    }
+                }
+                Section {
+                    Toggle("מטלות נכנסות לזמן הזה", isOn: $draft.holdsTasks)
+                } footer: {
+                    Text("לזמן שהוא שלכם למלא, כמו שעות העבודה או זמן לסידורים: המטלות של היום משובצות בתוכו, והוא לא נחשב זמן תפוס.")
                 }
                 Section {
                     Toggle("חד פעמי, רק ב\(HebrewDate.weekday(day)) \(HebrewDate.text(day))", isOn: $draft.isOnce)
@@ -553,12 +643,21 @@ struct ScheduleEditor: View {
             item.symbol = draft.symbol
             item.palette = draft.palette
             item.onlyDay = draft.isOnce ? (item.onlyDay.isEmpty ? DayKey.of(day) : item.onlyDay) : ""
+            item.anchor = draft.anchor
+            item.anchorOffset = draft.anchor.isEmpty ? 0 : draft.anchorOffset
+            item.holdsTasks = draft.holdsTasks
+            // The clock time kept is today's reading of the anchor.
+            if !draft.anchor.isEmpty { item.startMinute = item.start(on: .now) }
             item.updatedAt = .now
         } else {
             let created = ScheduleItem(
                 title: title, startMinute: draft.start, durationMinutes: draft.duration,
                 weekdays: draft.weekdays, symbol: draft.symbol, palette: draft.palette)
             created.onlyDay = draft.isOnce ? DayKey.of(day) : ""
+            created.anchor = draft.anchor
+            created.anchorOffset = draft.anchor.isEmpty ? 0 : draft.anchorOffset
+            created.holdsTasks = draft.holdsTasks
+            if !draft.anchor.isEmpty { created.startMinute = created.start(on: .now) }
             context.insert(created)
             Feedback.added()
             Task { _ = await Notifier.shared.askPermission() }
