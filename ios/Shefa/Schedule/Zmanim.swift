@@ -78,9 +78,9 @@ struct Zmanim {
         self.city = city
         self.day = day
 
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = city.timeZone
-        let weekday = calendar.component(.weekday, from: day)
+        // Shabbat, a festival, or the eve of one: the candles and the end of
+        // the day follow the Jewish calendar, not the day of the week alone.
+        let kind: JewishDay = JewishDay.of(day)
 
         func sun(_ zenith: Double, rising: Bool) -> Date? {
             Zmanim.sunTime(day: day, city: city, zenith: zenith, rising: rising)
@@ -110,16 +110,47 @@ struct Zmanim {
             add("plag", "פלג המנחה", trueRise.addingTimeInterval(hour * 10.75), "sun.horizon")
         }
 
-        if weekday == 6, let set {
-            add("candles", "הדלקת נרות שבת", set.addingTimeInterval(Double(-city.candles) * 60), "flame.fill", main: true)
+        let nightfall: Date? = sun(98.5, rising: false)
+        if kind.hasCandles {
+            if kind.isRest && (kind.isShabbat || !kind.next.isShabbat) {
+                // One holy day leads into a festival: the candles wait for
+                // the night, and are lit from a flame that is already burning.
+                add("candles", "הדלקת נרות · לא לפני", nightfall, "flame.fill", main: true)
+            } else if let set {
+                var name = "הדלקת נרות"
+                if kind.next.isShabbat {
+                    name = kind.next.yomTov == nil ? "הדלקת נרות שבת" : "הדלקת נרות שבת וחג"
+                } else if kind.next.fast == nil {
+                    name = "הדלקת נרות חג"
+                }
+                add("candles", name, set.addingTimeInterval(Double(-city.candles) * 60), "flame.fill", main: true)
+            }
         }
         add("shkia", "שקיעת החמה", set, "sunset.fill", main: true)
-        if weekday == 7 {
-            add("shabbat-end", "צאת השבת", sun(98.5, rising: false), "sparkles", main: true)
+        if kind.isRest {
+            // When another holy day follows, the night belongs to it.
+            if !kind.next.isRest {
+                var name = "צאת השבת"
+                if kind.fast != nil {
+                    name = "צאת יום הכיפורים"
+                } else if kind.yomTov != nil {
+                    name = kind.isShabbat ? "צאת השבת והחג" : "צאת החג"
+                }
+                add("shabbat-end", name, nightfall, "sparkles", main: true)
+            }
         } else {
             add("tzeit", "צאת הכוכבים", sun(96, rising: false), "moon.fill", main: true)
         }
         list = result.sorted { $0.date < $1.date }
+    }
+
+    /// The times to show at a given moment: today's, and once the last of
+    /// them has passed, tomorrow's.
+    static func showing(city: City = .current, at now: Date = .now) -> Zmanim {
+        let today = Zmanim(city: city, day: now)
+        guard let last = today.list.last, last.date <= now,
+              let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) else { return today }
+        return Zmanim(city: city, day: tomorrow)
     }
 
     /// The next time that has not passed yet.

@@ -16,6 +16,14 @@ enum TaskRules {
         if item.kind == ListItem.task {
             Stats.addDone(done ? 1 : -1)
         }
+        if done, item.kind == ListItem.task {
+            // A task that was started with the timer teaches how long such
+            // tasks really take.
+            if FocusTimer.shared.isActive, FocusTimer.shared.taskID == item.id { FocusTimer.shared.stop() }
+            if let minutes = FocusTimer.takeMinutes(of: item.id) {
+                DayJournal.addSample(estimate: item.minutes, actual: minutes)
+            }
+        }
         if done, !item.repeatRule.isEmpty {
             let step = item.repeatRule == "weekly" ? 7 : 1
             let base = max(item.due ?? .now, Calendar.current.startOfDay(for: .now))
@@ -31,6 +39,7 @@ enum TaskRules {
         try? context.save()
         SharedSync.shared.changed(in: context)
         Notifier.shared.refresh(in: context)
+        if item.kind == ListItem.task { noteDay(in: context) }
 
         guard done, wasForToday else { return false }
         let descriptor = FetchDescriptor<ListItem>(

@@ -34,6 +34,10 @@ struct SharedPayload: Codable {
     var doneDays: String?
     var log: String?
     var occasion: String?
+    var pushed: Int?
+    var pushedDay: String?
+    var anchor: String?
+    var anchorOffset: Int?
 }
 
 private struct SharedRow: Codable {
@@ -165,6 +169,8 @@ final class SharedSync {
                     item.note = row.data.note
                     item.repeatRule = row.data.repeatRule ?? ""
                     item.todayDay = row.data.todayDay ?? ""
+                    item.pushed = row.data.pushed ?? item.pushed
+                    item.pushedDay = row.data.pushedDay ?? item.pushedDay
                     item.removed = false
                     item.updatedAt = Self.date(row.updated_ms)
                 }
@@ -179,6 +185,8 @@ final class SharedSync {
                 payload.note = item.note
                 payload.repeatRule = item.repeatRule
                 payload.todayDay = item.todayDay
+                payload.pushed = item.pushed
+                payload.pushedDay = item.pushedDay
                 outgoing.append(SharedRow(id: item.id, kind: "list", data: payload,
                                           deleted: item.removed, updated_ms: Self.stamp(item.updatedAt)))
             case .keep:
@@ -195,6 +203,8 @@ final class SharedSync {
             item.note = row.data.note
             item.repeatRule = row.data.repeatRule ?? ""
             item.todayDay = row.data.todayDay ?? ""
+            item.pushed = row.data.pushed ?? 0
+            item.pushedDay = row.data.pushedDay ?? ""
             if let created = row.data.createdMs { item.createdAt = Self.date(created) }
             item.updatedAt = Self.date(row.updated_ms)
             context.insert(item)
@@ -302,6 +312,8 @@ final class SharedSync {
                     item.palette = row.data.palette ?? item.palette
                     item.onlyDay = row.data.onlyDay ?? ""
                     item.doneDays = row.data.doneDays ?? item.doneDays
+                    item.anchor = row.data.anchor ?? item.anchor
+                    item.anchorOffset = row.data.anchorOffset ?? item.anchorOffset
                     item.removed = false
                     item.updatedAt = Self.date(row.updated_ms)
                 }
@@ -314,6 +326,8 @@ final class SharedSync {
                 payload.startMinute = item.startMinute
                 payload.duration = item.durationMinutes
                 payload.weekdays = item.weekdays
+                payload.anchor = item.anchor
+                payload.anchorOffset = item.anchorOffset
                 outgoing.append(SharedRow(id: item.id, kind: "schedule", data: payload,
                                           deleted: item.removed, updated_ms: Self.stamp(item.updatedAt)))
             case .keep:
@@ -327,6 +341,8 @@ final class SharedSync {
                 symbol: row.data.symbol ?? "clock.fill", palette: row.data.palette ?? 0)
             item.onlyDay = row.data.onlyDay ?? ""
             item.doneDays = row.data.doneDays ?? ""
+            item.anchor = row.data.anchor ?? ""
+            item.anchorOffset = row.data.anchorOffset ?? 0
             item.updatedAt = Self.date(row.updated_ms)
             context.insert(item)
         }

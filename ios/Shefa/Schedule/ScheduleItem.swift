@@ -21,6 +21,11 @@ final class ScheduleItem {
     var onlyDay: String = ""
     /// The days on which it was marked as done, as `DayKey`s joined by commas.
     var doneDays: String = ""
+    /// When set, the start follows one of the day's times (a `Zman` id) and
+    /// not the clock, so "Mincha before sunset" moves with the seasons.
+    var anchor: String = ""
+    /// Minutes after the anchor; negative for before it.
+    var anchorOffset: Int = 0
 
     init(id: String = UUID().uuidString, title: String, startMinute: Int, durationMinutes: Int,
          weekdays: Int = ScheduleItem.weekdaysMask, symbol: String = "clock.fill", palette: Int = 0) {
@@ -52,7 +57,34 @@ final class ScheduleItem {
 
     func isOn(_ date: Date) -> Bool {
         if !onlyDay.isEmpty { return onlyDay == DayKey.of(date) }
+        // A festival is kept like Shabbat: only what was set for Shabbat is on.
+        if JewishDay.of(date).yomTov != nil { return isOn(weekday: 7) }
         return isOn(weekday: Calendar.current.component(.weekday, from: date))
+    }
+
+    /// The minute it starts on a given day: by its anchor when it has one
+    /// and the day has that time, otherwise by the clock.
+    func start(on day: Date) -> Int {
+        guard !anchor.isEmpty,
+              let zman = Zmanim(day: day).list.first(where: { $0.id == anchor }) else { return startMinute }
+        return min(max(ScheduleItem.minute(of: zman.date) + anchorOffset, 0), 23 * 60 + 55)
+    }
+
+    func end(on day: Date) -> Int { start(on: day) + durationMinutes }
+
+    /// The times of the day a part can follow, in the order of the day.
+    static let anchors: [(id: String, title: String)] = [
+        ("netz", "הנץ החמה"), ("shma", "סוף זמן קריאת שמע"), ("chatzot", "חצות היום"),
+        ("mincha", "מנחה גדולה"), ("plag", "פלג המנחה"), ("candles", "הדלקת נרות"),
+        ("shkia", "שקיעת החמה"), ("tzeit", "צאת הכוכבים"),
+    ]
+
+    /// For example "20 דק׳ לפני שקיעת החמה".
+    var anchorText: String? {
+        guard let name = ScheduleItem.anchors.first(where: { $0.id == anchor })?.title else { return nil }
+        if anchorOffset == 0 { return "ב" + name }
+        let side: String = anchorOffset < 0 ? "לפני" : "אחרי"
+        return "\(NowStatus.duration(abs(anchorOffset))) \(side) \(name)"
     }
 
     func isDone(on date: Date = .now) -> Bool {
@@ -91,6 +123,23 @@ final class ScheduleItem {
 }
 
 extension ScheduleItem {
+    /// Brings the clock time of every anchored part to today's times. It is
+    /// this phone's own reading of the same rule, so it is not stamped as an
+    /// edit and the other phone is not told.
+    @MainActor
+    static func followAnchors(in context: ModelContext, now: Date = .now) {
+        let all: [ScheduleItem] = (try? context.fetch(FetchDescriptor<ScheduleItem>())) ?? []
+        var changed = false
+        for item in all where !item.removed && !item.anchor.isEmpty {
+            let start: Int = item.start(on: now)
+            if item.startMinute != start {
+                item.startMinute = start
+                changed = true
+            }
+        }
+        if changed { try? context.save() }
+    }
+
     /// Call after a part of today was just marked as done. When it was the
     /// last one, the day's celebration plays; returns true when it did.
     @MainActor @discardableResult

@@ -21,8 +21,14 @@ final class ListItem {
     var note: String? = nil
     /// "", "daily" or "weekly".
     var repeatRule: String = ""
-    /// The day this task was picked as one of "today's three".
+    /// The day this task was picked as one of "today's three". When that day
+    /// passed with the task still open, the day follows `leftMark`.
     var todayDay: String = ""
+    /// How many times it was put off: by choice, or by a day that ended
+    /// without it.
+    var pushed: Int = 0
+    /// The last day on which a putting off was counted, so a day counts once.
+    var pushedDay: String = ""
 
     init(kind: String, title: String) {
         self.id = UUID().uuidString
@@ -37,6 +43,15 @@ final class ListItem {
     static let shopping = "shopping"
     static let note = "note"
     static let learning = "learning"
+
+    /// Starts `todayDay` of a task that was chosen for a day that has passed.
+    static let leftMark = "~"
+
+    /// Chosen for an earlier day and still open: the morning asks about it again.
+    var isLeftOver: Bool { !isDone && todayDay.hasPrefix(ListItem.leftMark) }
+
+    /// Put off three times: too big as it stands, or not really needed.
+    var isStuck: Bool { !isDone && pushed >= 3 }
 
     var isForToday: Bool {
         if todayDay == DayKey.of() { return true }
