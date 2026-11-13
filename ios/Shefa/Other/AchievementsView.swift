@@ -98,6 +98,7 @@ struct AchievementsView: View {
     @Query(filter: #Predicate<ListItem> { !$0.removed }) private var items: [ListItem]
     @Query(filter: #Predicate<ScheduleItem> { !$0.removed }) private var schedule: [ScheduleItem]
     @Query private var budget: [BudgetLine]
+    @Query(filter: #Predicate<Habit> { !$0.removed }) private var habits: [Habit]
 
     var body: some View {
         let list = Achievements.build(entries: Ledger.effective(entries), goals: goals, items: items,
@@ -130,6 +131,8 @@ struct AchievementsView: View {
                 .background(Theme.violet.gradient, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
                 .shadow(color: Color(hex: 0x4C1D95).opacity(0.4), radius: 20, y: 12)
                 .accessibilityElement(children: .combine)
+
+                WeekCard(habits: habits)
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible())], spacing: 12) {
                     ForEach(list) { item in
@@ -173,5 +176,65 @@ struct AchievementsView: View {
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 10, y: 6)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The last seven days at a glance: how much of the daily pillars was kept
+/// each day, and how many tasks were closed.
+struct WeekCard: View {
+    let habits: [Habit]
+    @State private var isShown = false
+
+    private var days: [Date] {
+        (0..<7).reversed().compactMap { Calendar.current.date(byAdding: .day, value: -$0, to: .now) }
+    }
+
+    private func share(_ day: Date) -> Double {
+        guard !habits.isEmpty else { return 0 }
+        return Double(habits.filter { $0.isDone(on: day) }.count) / Double(habits.count)
+    }
+
+    var body: some View {
+        let done = Stats.doneByDay
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("השבוע שלי")
+                    .font(.system(size: 20, weight: .heavy))
+                Text("גובה העמודה: כמה מעמודי היום נשמרו. המספר: מטלות שנסגרו.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(days, id: \.self) { day in
+                    let value = share(day)
+                    let count = done[DayKey.of(day)] ?? 0
+                    let isToday = Calendar.current.isDateInToday(day)
+                    VStack(spacing: 6) {
+                        Text(count > 0 ? "\(count)" : " ")
+                            .font(.system(size: 13, weight: .heavy))
+                            .monospacedDigit()
+                            .foregroundStyle(Theme.accent)
+                        ZStack(alignment: .bottom) {
+                            Capsule().fill(Theme.chip)
+                            Capsule()
+                                .fill(value >= 1 ? Theme.green.gradient : Theme.blue.gradient)
+                                .frame(height: isShown ? max(96 * value, value > 0 ? 14 : 0) : 0)
+                        }
+                        .frame(height: 96)
+                        Text(["א", "ב", "ג", "ד", "ה", "ו", "ש"][Calendar.current.component(.weekday, from: day) - 1] + "׳")
+                            .font(.system(size: 13, weight: isToday ? .heavy : .medium))
+                            .foregroundStyle(isToday ? Color.primary : Color.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(HebrewDate.weekday(day)): \(Int(value * 100)) אחוז מעמודי היום, \(count) מטלות")
+                }
+            }
+        }
+        .padding(16)
+        .cardSurface()
+        .onAppear {
+            withAnimation(.spring(duration: 0.8, bounce: 0.25).delay(0.15)) { isShown = true }
+        }
     }
 }

@@ -58,5 +58,10 @@ extension View {
         self
             .background(Theme.card, in: Theme.cardShape)
             .shadow(color: .black.opacity(0.08), radius: 14, y: 8)
+            .scrollTransition(.animated(.spring(duration: 0.4)).threshold(.visible(0.08))) { content, phase in
+                content
+                    .opacity(phase.isIdentity ? 1 : 0.55)
+                    .scaleEffect(phase.isIdentity ? 1 : 0.965)
+            }
     }
 }
