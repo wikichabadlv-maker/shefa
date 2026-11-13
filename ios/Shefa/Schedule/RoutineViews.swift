@@ -74,6 +74,8 @@ struct RoutineShelf: View {
                 isChoosing = false
             }
         }
+        // A routine that came or went, or changed its hour, moves its reminder.
+        .onChange(of: store.all) { _, _ in Notifier.shared.refresh(in: context) }
         .task {
             // A test run opens the editor of the first routine.
             guard Launch.screen == "routine-edit" else { return }
@@ -91,7 +93,7 @@ struct RoutineShelf: View {
     /// Before the first routine: what it is, and a few to begin from.
     private var starter: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("רצף קבוע של צעדים קצרים שמתנגן אחד אחרי השני: בוקר, יציאה מהבית, ערב שבת. לא צריך לחשוב מה עכשיו, ורואים מראש מתי מסיימים.")
+            Text("רצף קבוע של צעדים קצרים, שמתנגן צעד אחרי צעד: בוקר, יציאה מהבית, ערב שבת. לא צריך לחשוב מה עכשיו, ורואים מראש מתי מסיימים.")
                 .font(.system(size: 14))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
