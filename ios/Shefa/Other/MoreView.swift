@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 private enum AreaKind: String {
-    case zmanim, shopping, books, notes, learning, achievements, assistant, settings
+    case zmanim, shopping, study, books, notes, learning, achievements, assistant, settings
 }
 
 private struct AppArea: Identifiable {
@@ -30,9 +30,10 @@ struct MoreView: View {
     private let areas = [
         AppArea(kind: .zmanim, title: "זמני היום", subtitle: "לוח הזמנים ההלכתי", symbol: "sun.horizon.fill", artwork: Artwork(0x0EA5E9, 0x4F46E5)),
         AppArea(kind: .shopping, title: "רשימת קניות", subtitle: "משותפת לשניכם", symbol: "cart.fill", artwork: Theme.pink),
-        AppArea(kind: .books, title: "לימוד וקריאה", subtitle: "חת״ת, רמב״ם ומדף הספרים", symbol: "books.vertical.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
+        AppArea(kind: .study, title: "חת״ת ורמב״ם", subtitle: "השיעורים היומיים והשלמות", symbol: "book.fill", artwork: Artwork(0x4F46E5, 0x312E81)),
+        AppArea(kind: .books, title: "מדף הספרים", subtitle: "מה קוראים ובאיזה קצב", symbol: "books.vertical.fill", artwork: Artwork(0x0891B2, 0x155E75)),
         AppArea(kind: .notes, title: "לזכור", subtitle: "פתקים ודברים חשובים", symbol: "lightbulb.fill", artwork: Theme.amber),
-        AppArea(kind: .learning, title: "חידושים ונקודות", subtitle: "מה למדנו ומה חידשנו", symbol: "book.fill", artwork: Theme.blue),
+        AppArea(kind: .learning, title: "חידושים ונקודות", subtitle: "מה למדנו ומה חידשנו", symbol: "sparkles", artwork: Theme.blue),
         AppArea(kind: .achievements, title: "הישגים", subtitle: "מהפעילות האמיתית שלכם", symbol: "trophy.fill", artwork: Theme.violet),
         AppArea(kind: .assistant, title: "שפע · עוזר קולי", subtitle: "בקרוב", symbol: "waveform", artwork: Theme.emerald),
         AppArea(kind: .settings, title: "הגדרות", subtitle: "חשבון, עיר ומראה", symbol: "gearshape.fill", artwork: Artwork(0x64748B, 0x334155)),
@@ -96,6 +97,8 @@ struct MoreView: View {
         switch AreaKind(rawValue: id) {
         case .shopping:
             ShoppingScreen()
+        case .study:
+            StudyView()
         case .books:
             BooksView()
         case .notes:

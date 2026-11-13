@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var backend = Backend.shared
     @State private var router = AppRouter.shared
     @State private var viewing: LedgerEntry?
+    @State private var showsStudy = false
 
     private var counted: [LedgerEntry] { Ledger.effective(entries) }
     private var month: MonthSummary { Ledger.summary(counted) }
@@ -70,7 +71,7 @@ struct HomeView: View {
 
                     HabitsCard()
 
-                    DailyStudyCard()
+                    DailyStudyCard(opensTracker: { showsStudy = true })
 
                     insights
 
@@ -108,6 +109,9 @@ struct HomeView: View {
             }
             .sheet(item: $viewing) { entry in
                 EntryDetailSheet(entry: entry)
+            }
+            .navigationDestination(isPresented: $showsStudy) {
+                StudyView()
             }
         }
     }

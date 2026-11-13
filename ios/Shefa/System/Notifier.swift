@@ -139,8 +139,10 @@ final class Notifier {
             if let minute = Coach.morningMinute, let date = time(day, minute) {
                 var lines: [String] = []
                 if !todays.isEmpty { lines.append(todays.count == 1 ? "מטלה אחת להיום" : "\(todays.count) מטלות להיום") }
-                lines.append("רמב״ם: " + DailyStudy.rambamText(on: day))
-                lines.append("חומש: " + DailyStudy.chumashText(on: day))
+                if StudyLog.tracked.contains(DailyStudy.rambam) { lines.append("רמב״ם: " + DailyStudy.rambamText(on: day)) }
+                if StudyLog.tracked.contains(DailyStudy.chumash) { lines.append("חומש: " + DailyStudy.chumashText(on: day)) }
+                let waiting = StudyLog.gaps().count
+                if isToday, waiting > 0 { lines.append("השלמות: \(waiting) שיעורים מחכים") }
                 result.append((date, "בוקר טוב · \(HebrewDate.text(day))", lines.joined(separator: "\n")))
             }
 
@@ -154,6 +156,8 @@ final class Notifier {
             if let minute = Coach.eveningMinute, let date = time(day, minute) {
                 var body = "מה שלושת הדברים של מחר? דקה של תכנון עכשיו חוסכת בוקר שלם."
                 if let book { body += " ועמוד אחד ב״\(book.title)״ לפני השינה." }
+                let left = StudyLog.tracked.filter { !StudyLog.isDone($0, on: day) }.map { StudyText.name($0) }
+                if isToday, !left.isEmpty { body = "נשאר ללמוד היום: " + left.joined(separator: ", ") + ". " + body }
                 result.append((date, "סוגרים את היום", body))
             }
 

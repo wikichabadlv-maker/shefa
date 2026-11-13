@@ -31,6 +31,7 @@ enum DemoData {
         for title in ["קוד לדלת הבניין: 2580", "מידת נעליים של רבקי: 38"] {
             context.insert(ListItem(kind: ListItem.note, title: title))
         }
+        StudyLog.fillDemo()
         let book = Book(title: "היום יום", author: "הרבי מליובאוויטש", totalPages: 240, palette: 7)
         for (back, page) in [(4, 96), (3, 104), (2, 118), (1, 131), (0, 142)] {
             book.setPage(page, on: Calendar.current.date(byAdding: .day, value: -back, to: .now) ?? .now)

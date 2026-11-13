@@ -100,7 +100,6 @@ struct BooksView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 hero
-                DailyStudyCard()
 
                 if books.isEmpty {
                     emptyState
@@ -152,7 +151,7 @@ struct BooksView: View {
             .animation(.section, value: books.map(\.page))
         }
         .background(Theme.ground)
-        .navigationTitle("לימוד וקריאה")
+        .navigationTitle("מדף הספרים")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
