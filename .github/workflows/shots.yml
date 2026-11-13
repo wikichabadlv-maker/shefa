@@ -71,15 +71,18 @@ jobs:
           if [ -n "$MONTH" ]; then extra="$extra -month $MONTH"; fi
           if [ "$DEMO" = "yes" ]; then extra="$extra -demo YES"; fi
           capture() {
+            # An item is a screen, optionally with a place to scroll to and
+            # a mood for the month card: screen@anchor@mood.
             for item in $2; do
-              screen="${item%%@*}"
-              anchor=""
-              if [ "$item" != "$screen" ]; then anchor="${item#*@}"; fi
+              IFS='@' read -r screen anchor mood <<< "$item"
+              more=""
+              if [ -n "$mood" ]; then more="-mood $mood"; fi
               xcrun simctl terminate "$device" app.shefa.ios >/dev/null 2>&1 || true
-              xcrun simctl launch "$device" app.shefa.ios -screen "$screen" -anchor "$anchor" $extra
+              xcrun simctl launch "$device" app.shefa.ios -screen "$screen" -anchor "$anchor" $extra $more
               sleep 6
               name="$screen"
-              if [ -n "$anchor" ]; then name="$screen-$anchor"; fi
+              if [ -n "$anchor" ]; then name="$name-$anchor"; fi
+              if [ -n "$mood" ]; then name="$name-$mood"; fi
               xcrun simctl io "$device" screenshot "shots/$name$1.png"
               sips -Z 1500 "shots/$name$1.png" >/dev/null
             done
