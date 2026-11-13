@@ -57,7 +57,8 @@ enum ExcelImport {
 extension Ledger {
     /// The lines that count toward totals. For months the spreadsheet covers,
     /// only its lines count, so nothing is counted twice.
-    static func effective(_ entries: [LedgerEntry]) -> [LedgerEntry] {
+    static func effective(_ all: [LedgerEntry]) -> [LedgerEntry] {
+        let entries = all.filter { !$0.removed }
         let dates = entries.filter { $0.source == ExcelImport.source }.map(\.date)
         guard let last = dates.max(),
               let covered = Calendar.current.dateInterval(of: .month, for: last)

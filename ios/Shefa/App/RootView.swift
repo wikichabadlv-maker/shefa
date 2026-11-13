@@ -9,6 +9,7 @@ enum AppTab: Hashable {
 /// and the remaining areas, and the current schedule task floating above it.
 struct RootView: View {
     @State private var selection: AppTab = Launch.tab
+    @State private var router = AppRouter.shared
     @Environment(\.modelContext) private var context
 
     var body: some View {
@@ -17,8 +18,7 @@ struct RootView: View {
                 HomeView(selection: $selection)
             }
             Tab("לו״ז", systemImage: "clock.fill", value: AppTab.schedule) {
-                ComingSoonView(title: "לו״ז", symbol: "clock.fill",
-                               text: "לוח יום חי עם זמני היום ותכנון חכם.")
+                ScheduleView()
             }
             Tab("פיננסים", systemImage: "creditcard.fill", value: AppTab.finance) {
                 FinanceView()
@@ -35,12 +35,15 @@ struct RootView: View {
         }
         .tabBarMinimizeBehavior(.onScrollDown)
         .tabViewBottomAccessory {
-            NowTaskBar(task: SampleData.currentTask)
+            NowTaskBar(selection: $selection)
+        }
+        .sheet(isPresented: $router.isQuickAdding) {
+            QuickAddSheet()
         }
         .task {
             ExcelImport.importIfNeeded(in: context)
-            Ledger.seedIfNeeded(in: context)
-            Ledger.seedPlanningIfNeeded(in: context)
+            Ledger.removeExampleGoals(in: context)
+            if Launch.demo { DemoData.fill(context) }
             await Backend.shared.sync(into: context)
         }
     }
@@ -49,5 +52,5 @@ struct RootView: View {
 #Preview {
     RootView()
         .environment(\.layoutDirection, .rightToLeft)
-        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self, CustomSub.self], inMemory: true)
+        .modelContainer(for: [LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self, CustomSub.self, ScheduleItem.self], inMemory: true)
 }

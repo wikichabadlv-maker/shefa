@@ -27,6 +27,8 @@ final class SavingsGoal {
     var createdAt: Date
     var updatedAt: Date = Date.now
     var removed: Bool = false
+    /// When the family wants to reach the goal, if they set a date.
+    var deadline: Date? = nil
 
     init(id: String = UUID().uuidString, title: String, saved: Decimal = 0, target: Decimal,
          symbol: String = "star.fill", palette: Int = 0, createdAt: Date = .now) {
@@ -39,7 +41,21 @@ final class SavingsGoal {
         self.createdAt = createdAt
     }
 
-    static let palettes: [Artwork] = [Theme.blue, Theme.violet, Theme.pink, Theme.emerald, Theme.amber]
+    static let palettes: [Artwork] = [
+        Theme.blue, Theme.violet, Theme.pink, Theme.emerald, Theme.amber,
+        Artwork(0x0891B2, 0x155E75), Artwork(0xEA580C, 0x9A3412), Artwork(0x4F46E5, 0x312E81),
+    ]
+
+    static let emergencyID = "emergency-fund"
+
+    var left: Decimal { max(target - saved, 0) }
+
+    /// How much to put aside each month to arrive on time.
+    var monthlyNeeded: Decimal? {
+        guard let deadline, left > 0 else { return nil }
+        let months = Calendar.current.dateComponents([.month], from: .now, to: deadline).month ?? 0
+        return left / Decimal(max(months, 1))
+    }
 
     var artwork: Artwork {
         SavingsGoal.palettes[abs(palette) % SavingsGoal.palettes.count]
@@ -107,23 +123,39 @@ extension Ledger {
         return result
     }
 
-    static func seedPlanningIfNeeded(in context: ModelContext) {
-        if ((try? context.fetchCount(FetchDescriptor<SavingsGoal>())) ?? 0) == 0 {
-            let now = Date.now
-            let examples: [(String, Decimal, Decimal, String)] = [
-                ("דירה משלנו", 48_000, 200_000, "house.fill"),
-                ("בר מצווה", 12_300, 30_000, "star.fill"),
-                ("חופשת קיץ", 3_100, 8_000, "sun.max.fill"),
-            ]
-            for (index, example) in examples.enumerated() {
-                let goal = SavingsGoal(
-                    id: "example-goal-\(index)", title: example.0, saved: example.1, target: example.2,
-                    symbol: example.3, palette: index,
-                    createdAt: now.addingTimeInterval(Double(index - examples.count)))
-                goal.updatedAt = SharedSync.untouched
-                context.insert(goal)
+    /// Early versions filled the savings screen with made-up goals. This
+    /// removes them once, on both phones.
+    static func removeExampleGoals(in context: ModelContext) {
+        let key = "removedExampleGoals"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        let goals = (try? context.fetch(FetchDescriptor<SavingsGoal>())) ?? []
+        for goal in goals where goal.id.hasPrefix("example-goal-") {
+            if goal.updatedAt <= SharedSync.untouched {
+                context.delete(goal)
+            } else {
+                goal.removed = true
+                goal.updatedAt = .now
             }
         }
         try? context.save()
+        UserDefaults.standard.set(true, forKey: key)
+    }
+
+    /// What an ordinary month costs this family: the average spending of up
+    /// to six earlier months, without one-time expenses.
+    static func monthlyLivingCost(_ entries: [LedgerEntry], now: Date = .now) -> Decimal {
+        var sums: [Decimal] = []
+        for back in 1...6 {
+            guard let month = Calendar.current.date(byAdding: .month, value: -back, to: now) else { continue }
+            let lines = inMonth(entries, month)
+            if lines.isEmpty { continue }
+            var sum = Decimal(0)
+            for entry in lines where isSpending(entry) && entry.nature != .once {
+                sum -= entry.amount
+            }
+            if sum > 0 { sums.append(sum) }
+        }
+        guard !sums.isEmpty else { return 0 }
+        return sums.reduce(Decimal(0), +) / Decimal(sums.count)
     }
 }

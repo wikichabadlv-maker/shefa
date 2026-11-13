@@ -13,6 +13,17 @@ struct SharedPayload: Codable {
     var symbol: String?
     var palette: Int?
     var createdMs: Int64?
+    var deadlineMs: Int64?
+    var amount: Double?
+    var dateMs: Int64?
+    var subID: String?
+    var subTitle: String?
+    var note: String?
+    var source: String?
+    var nature: String?
+    var startMinute: Int?
+    var duration: Int?
+    var weekdays: Int?
 }
 
 private struct SharedRow: Codable {
@@ -83,6 +94,8 @@ final class SharedSync {
             try mergeLists(remote: remote, byID: byID, outgoing: &outgoing, context: context)
             try mergeGoals(remote: remote, byID: byID, outgoing: &outgoing, context: context)
             try mergeBudget(remote: remote, byID: byID, outgoing: &outgoing, context: context)
+            try mergeSchedule(remote: remote, byID: byID, outgoing: &outgoing, context: context)
+            try mergeManualEntries(remote: remote, byID: byID, outgoing: &outgoing, context: context)
             try context.save()
 
             if !outgoing.isEmpty {
@@ -167,6 +180,7 @@ final class SharedSync {
                     goal.target = Self.money(row.data.target)
                     goal.symbol = row.data.symbol ?? goal.symbol
                     goal.palette = row.data.palette ?? goal.palette
+                    goal.deadline = row.data.deadlineMs.map(Self.date)
                     goal.removed = false
                     goal.updatedAt = Self.date(row.updated_ms)
                 }
@@ -177,7 +191,8 @@ final class SharedSync {
                     id: goal.id, kind: "goal",
                     data: SharedPayload(title: goal.title, saved: Self.money(goal.saved),
                                         target: Self.money(goal.target), symbol: goal.symbol,
-                                        palette: goal.palette, createdMs: Self.stamp(goal.createdAt)),
+                                        palette: goal.palette, createdMs: Self.stamp(goal.createdAt),
+                                        deadlineMs: goal.deadline.map(Self.stamp)),
                     deleted: goal.removed, updated_ms: Self.stamp(goal.updatedAt)))
             case .keep:
                 break
@@ -189,6 +204,7 @@ final class SharedSync {
                 target: Self.money(row.data.target), symbol: row.data.symbol ?? "star.fill",
                 palette: row.data.palette ?? 0,
                 createdAt: row.data.createdMs.map(Self.date) ?? .now)
+            goal.deadline = row.data.deadlineMs.map(Self.date)
             goal.updatedAt = Self.date(row.updated_ms)
             context.insert(goal)
         }
@@ -221,6 +237,99 @@ final class SharedSync {
             let line = BudgetLine(categoryID: category, limit: Self.money(row.data.limit))
             line.updatedAt = Self.date(row.updated_ms)
             context.insert(line)
+        }
+    }
+
+    private func mergeSchedule(remote: [SharedRow], byID: [String: SharedRow],
+                               outgoing: inout [SharedRow], context: ModelContext) throws {
+        var seen = Set<String>()
+        for item in try context.fetch(FetchDescriptor<ScheduleItem>()) {
+            seen.insert(item.id)
+            let row = byID[item.id]
+            switch verdict(local: item.updatedAt, removed: item.removed, remote: row) {
+            case .takeRemote:
+                if let row {
+                    item.title = row.data.title ?? item.title
+                    item.startMinute = row.data.startMinute ?? item.startMinute
+                    item.durationMinutes = row.data.duration ?? item.durationMinutes
+                    item.weekdays = row.data.weekdays ?? item.weekdays
+                    item.symbol = row.data.symbol ?? item.symbol
+                    item.palette = row.data.palette ?? item.palette
+                    item.removed = false
+                    item.updatedAt = Self.date(row.updated_ms)
+                }
+            case .deleteLocal:
+                context.delete(item)
+            case .upload:
+                var payload = SharedPayload(title: item.title, symbol: item.symbol, palette: item.palette)
+                payload.startMinute = item.startMinute
+                payload.duration = item.durationMinutes
+                payload.weekdays = item.weekdays
+                outgoing.append(SharedRow(id: item.id, kind: "schedule", data: payload,
+                                          deleted: item.removed, updated_ms: Self.stamp(item.updatedAt)))
+            case .keep:
+                break
+            }
+        }
+        for row in remote where row.kind == "schedule" && !row.deleted && !seen.contains(row.id) {
+            let item = ScheduleItem(
+                id: row.id, title: row.data.title ?? "", startMinute: row.data.startMinute ?? 480,
+                durationMinutes: row.data.duration ?? 60, weekdays: row.data.weekdays ?? ScheduleItem.weekdaysMask,
+                symbol: row.data.symbol ?? "clock.fill", palette: row.data.palette ?? 0)
+            item.updatedAt = Self.date(row.updated_ms)
+            context.insert(item)
+        }
+    }
+
+    /// Lines the family typed in by hand, such as cash purchases.
+    private func mergeManualEntries(remote: [SharedRow], byID: [String: SharedRow],
+                                    outgoing: inout [SharedRow], context: ModelContext) throws {
+        var seen = Set<String>()
+        for entry in try context.fetch(FetchDescriptor<LedgerEntry>()) where entry.isManual {
+            seen.insert(entry.id)
+            let row = byID[entry.id]
+            switch verdict(local: entry.updatedAt, removed: entry.removed, remote: row) {
+            case .takeRemote:
+                if let row {
+                    entry.title = row.data.title ?? entry.title
+                    entry.amount = Self.money(row.data.amount)
+                    if let stamp = row.data.dateMs { entry.date = Self.date(stamp) }
+                    entry.categoryID = row.data.categoryID
+                    entry.subID = row.data.subID
+                    entry.subTitle = row.data.subTitle
+                    entry.note = row.data.note
+                    entry.natureOverride = row.data.nature
+                    entry.source = row.data.source ?? entry.source
+                    entry.removed = false
+                    entry.updatedAt = Self.date(row.updated_ms)
+                }
+            case .deleteLocal:
+                context.delete(entry)
+            case .upload:
+                var payload = SharedPayload(title: entry.title, categoryID: entry.categoryID)
+                payload.amount = Self.money(entry.amount)
+                payload.dateMs = Self.stamp(entry.date)
+                payload.subID = entry.subID
+                payload.subTitle = entry.subTitle
+                payload.note = entry.note
+                payload.nature = entry.natureOverride
+                payload.source = entry.source
+                outgoing.append(SharedRow(id: entry.id, kind: "entry", data: payload,
+                                          deleted: entry.removed, updated_ms: Self.stamp(entry.updatedAt)))
+            case .keep:
+                break
+            }
+        }
+        for row in remote where row.kind == "entry" && !row.deleted && !seen.contains(row.id) {
+            let entry = LedgerEntry(
+                id: row.id, date: row.data.dateMs.map(Self.date) ?? .now, title: row.data.title ?? "",
+                amount: Self.money(row.data.amount), source: row.data.source ?? "מזומן",
+                categoryID: row.data.categoryID, note: row.data.note)
+            entry.subID = row.data.subID
+            entry.subTitle = row.data.subTitle
+            entry.natureOverride = row.data.nature
+            entry.updatedAt = Self.date(row.updated_ms)
+            context.insert(entry)
         }
     }
 }

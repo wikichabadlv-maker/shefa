@@ -184,15 +184,4 @@ enum Ledger {
             }
         }
     }
-
-    /// Fills the journal with example lines the first time the app opens,
-    /// until real data arrives from the bank sync.
-    static func seedIfNeeded(in context: ModelContext) {
-        let count = (try? context.fetchCount(FetchDescriptor<LedgerEntry>())) ?? 0
-        guard count == 0 else { return }
-        for entry in SampleData.entries() {
-            context.insert(entry)
-        }
-        try? context.save()
-    }
 }

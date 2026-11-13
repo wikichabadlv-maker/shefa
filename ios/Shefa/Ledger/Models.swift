@@ -19,6 +19,9 @@ final class LedgerEntry {
     /// Set when the family marks this line as fixed, variable or one-time
     /// differently from what its sub-category normally is.
     var natureOverride: String? = nil
+    var updatedAt: Date = Date.now
+    /// A line the family added by hand and later deleted.
+    var removed: Bool = false
 
     init(id: String, date: Date, title: String, amount: Decimal, source: String,
          method: String? = nil, categoryID: String? = nil, note: String? = nil,
@@ -38,6 +41,11 @@ final class LedgerEntry {
 
     var category: SpendCategory? { SpendCategory.find(categoryID) }
 
+    static let manualPrefix = "manual-"
+
+    /// Added by hand in the app, for example a cash purchase.
+    var isManual: Bool { id.hasPrefix(LedgerEntry.manualPrefix) }
+
     /// An expense that still waits for the user to say what it was.
     var needsAnswer: Bool { categoryID == nil && amount < 0 }
 
@@ -48,7 +56,7 @@ final class LedgerEntry {
     var detail: String {
         var parts = [subTitle ?? category?.title ?? (amount < 0 ? "לבירור" : "הכנסה")]
         parts.append(source)
-        if let method { parts.append(method) }
+        if let method, method != source { parts.append(method) }
         return parts.joined(separator: " · ")
     }
 }

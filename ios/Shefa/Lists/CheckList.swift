@@ -24,6 +24,8 @@ final class ListItem {
 
     static let task = "task"
     static let shopping = "shopping"
+    static let note = "note"
+    static let learning = "learning"
 }
 
 /// A list you add to from the top and tick off, used for tasks and shopping.

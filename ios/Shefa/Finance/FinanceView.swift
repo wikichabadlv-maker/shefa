@@ -11,11 +11,15 @@ enum FinanceSection: String, CaseIterable, Identifiable {
 }
 
 struct FinanceView: View {
-    @State private var section: FinanceSection = Launch.financeSection
+    @State private var router = AppRouter.shared
     @State private var query = ""
-    @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
+    @Query(filter: #Predicate<LedgerEntry> { !$0.removed }, sort: \LedgerEntry.date, order: .reverse)
+    private var entries: [LedgerEntry]
 
-    @State private var month = Date.now
+    @State private var month = Launch.month
+    @State private var isAdding = false
+
+    private var section: FinanceSection { router.financeSection }
 
     private var summary: MonthSummary {
         Ledger.summary(counted, now: month)
@@ -58,9 +62,10 @@ struct FinanceView: View {
 
     var body: some View {
         NavigationStack {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Picker("מדור", selection: $section) {
+                    Picker("מדור", selection: $router.financeSection) {
                         ForEach(FinanceSection.allCases) { item in
                             Text(item.rawValue).tag(item)
                         }
@@ -79,15 +84,32 @@ struct FinanceView: View {
                     case .budget:
                         BudgetList(entries: counted, month: month)
                     case .savings:
-                        SavingsList(month: Ledger.summary(counted))
+                        SavingsList(month: Ledger.summary(counted), entries: counted)
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+            .task {
+                guard !Launch.anchor.isEmpty else { return }
+                try? await Task.sleep(for: .seconds(1.5))
+                proxy.scrollTo(Launch.anchor, anchor: .top)
+            }
+            }
             .background(Theme.ground)
             .navigationTitle("פיננסים")
             .searchable(text: $query, prompt: "חנות או קטגוריה")
+            .onChange(of: query) { _, value in
+                if !value.isEmpty { router.financeSection = .transactions }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("הוספת תנועה", systemImage: "plus") { isAdding = true }
+                }
+            }
+            .sheet(isPresented: $isAdding) {
+                QuickAddSheet(kind: .expense)
+            }
         }
     }
 }
@@ -178,7 +200,7 @@ struct TransactionsList: View {
             }
         }
         .sheet(item: $editing) { entry in
-            CategoryPicker(entry: entry)
+            EntryDetailSheet(entry: entry)
         }
     }
 
@@ -222,7 +244,7 @@ struct TransactionRow: View {
                 Text(entry.title)
                     .font(.system(size: 16, weight: .bold))
                     .lineLimit(1)
-                Text(entry.detail)
+                Text(entry.note.map { "\(entry.detail) · \($0)" } ?? entry.detail)
                     .font(.system(size: 13))
                     .foregroundStyle(entry.needsAnswer ? Theme.amberInk : Color.secondary)
                     .lineLimit(1)
@@ -241,7 +263,7 @@ struct TransactionRow: View {
 /// The gold card that tracks maaser for the month.
 struct MaaserCard: View {
     let month: MonthSummary
-    @State private var isChomesh = false
+    @AppStorage("givesChomesh") private var isChomesh = false
 
     private var due: Decimal { isChomesh ? month.maaserDue * 2 : month.maaserDue }
     private var remaining: Decimal { max(due - month.maaserGiven, 0) }

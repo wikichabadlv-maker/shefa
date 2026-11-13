@@ -9,6 +9,16 @@ struct SettingsView: View {
     @State private var password = ""
     @State private var isWorking = false
     @State private var signInError: String?
+    @AppStorage(City.storageKey) private var cityID = City.all[0].id
+    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("givesChomesh") private var givesChomesh = false
+
+    private var version: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? ""
+        let build = info?["CFBundleVersion"] as? String ?? ""
+        return "\(short) (\(build))"
+    }
 
     var body: some View {
         Form {
@@ -66,8 +76,37 @@ struct SettingsView: View {
                 } header: {
                     Text("כניסה לחשבון המשפחתי")
                 } footer: {
-                    Text("עד הכניסה האפליקציה מציגה נתוני דוגמה בלבד.")
+                    Text("אחרי הכניסה מגיעות לכאן תנועות הבנק והאשראי, והרשימות, היעדים והלו״ז משותפים לשני הטלפונים.")
                 }
+            }
+
+            Section {
+                Picker("עיר", selection: $cityID) {
+                    ForEach(City.all) { city in
+                        Text(city.name).tag(city.id)
+                    }
+                }
+            } header: {
+                Text("זמני היום")
+            } footer: {
+                Text("הזמנים מחושבים לפי שיטת אדמו״ר הזקן.")
+            }
+
+            Section("כספים") {
+                Toggle("נותנים חומש (20%) במקום מעשר", isOn: $givesChomesh)
+            }
+
+            Section("מראה") {
+                Picker("מראה", selection: $appearance) {
+                    Text("לפי המכשיר").tag("system")
+                    Text("בהיר").tag("light")
+                    Text("כהה").tag("dark")
+                }
+                .pickerStyle(.segmented)
+            }
+
+            Section {
+                LabeledContent("גרסה", value: version)
             }
         }
         .navigationTitle("הגדרות")

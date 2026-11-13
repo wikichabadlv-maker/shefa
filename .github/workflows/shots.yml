@@ -7,8 +7,14 @@ on:
         description: Screens to capture, separated by spaces
         default: "home finance-overview finance-transactions finance-budget finance-savings tasks more schedule"
       dark:
-        description: Also capture in dark mode (yes/no)
-        default: "no"
+        description: Screens to capture again in dark mode, separated by spaces
+        default: ""
+      month:
+        description: Month the finance screens open on, such as 2026-10
+        default: ""
+      demo:
+        description: Fill the app with a few example lines (yes/no)
+        default: "yes"
 
 permissions:
   contents: write
@@ -45,6 +51,8 @@ jobs:
         env:
           SCREENS: ${{ inputs.screens }}
           DARK: ${{ inputs.dark }}
+          MONTH: ${{ inputs.month }}
+          DEMO: ${{ inputs.demo }}
         run: |
           device=$(xcrun simctl list devices available | grep -E "iPhone 1[67] Pro Max" | head -1 | grep -oE "[0-9A-F-]{36}")
           if [ -z "$device" ]; then
@@ -56,14 +64,17 @@ jobs:
           xcrun simctl install "$device" ios/build/Build/Products/Debug-iphonesimulator/Shefa.app
           xcrun simctl status_bar "$device" override --time "9:41" --batteryState charged --batteryLevel 100 || true
           mkdir -p shots
+          extra=""
+          if [ -n "$MONTH" ]; then extra="$extra -month $MONTH"; fi
+          if [ "$DEMO" = "yes" ]; then extra="$extra -demo YES"; fi
           capture() {
-            for item in $SCREENS; do
+            for item in $2; do
               screen="${item%%@*}"
               anchor=""
               if [ "$item" != "$screen" ]; then anchor="${item#*@}"; fi
               xcrun simctl terminate "$device" app.shefa.ios >/dev/null 2>&1 || true
-              xcrun simctl launch "$device" app.shefa.ios -screen "$screen" -anchor "$anchor"
-              sleep 7
+              xcrun simctl launch "$device" app.shefa.ios -screen "$screen" -anchor "$anchor" $extra
+              sleep 6
               name="$screen"
               if [ -n "$anchor" ]; then name="$screen-$anchor"; fi
               xcrun simctl io "$device" screenshot "shots/$name$1.png"
@@ -71,10 +82,10 @@ jobs:
             done
           }
           xcrun simctl ui "$device" appearance light
-          capture ""
-          if [ "$DARK" = "yes" ]; then
+          capture "" "$SCREENS"
+          if [ -n "$DARK" ]; then
             xcrun simctl ui "$device" appearance dark
-            capture "-dark"
+            capture "-dark" "$DARK"
           fi
 
       - name: Publish to the screenshots branch

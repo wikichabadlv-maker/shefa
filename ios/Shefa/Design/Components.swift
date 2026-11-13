@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 /// A colorful rounded square with a symbol, like an album cover.
@@ -44,52 +45,49 @@ struct SectionHeader: View {
     }
 }
 
-/// The current schedule task, shown above the tab bar on every screen.
+/// What is on now, or the next time of the day, floating above the tab bar
+/// on every screen. Tapping it opens the schedule; the bolt adds anything.
 struct NowTaskBar: View {
-    let task: ScheduleTask
-    @State private var isDone = false
+    @Binding var selection: AppTab
+    @Query(filter: #Predicate<ScheduleItem> { !$0.removed }, sort: \ScheduleItem.startMinute)
+    private var items: [ScheduleItem]
+    @AppStorage(City.storageKey) private var cityID = ""
 
     var body: some View {
-        HStack(spacing: 10) {
-            ArtworkIcon(artwork: Theme.green, symbol: task.symbol, size: 32)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(task.title)
-                    .font(.system(size: 15, weight: .bold))
-                    .lineLimit(1)
-                Text(isDone ? "הושלם" : "עכשיו בלו״ז · נשארו \(task.minutesLeft) דק׳")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let status = NowStatus.make(items: items, now: timeline.date)
+            HStack(spacing: 10) {
+                Button {
+                    selection = .schedule
+                } label: {
+                    HStack(spacing: 10) {
+                        ArtworkIcon(artwork: status.artwork, symbol: status.symbol, size: 32)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(status.title)
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                            Text(status.detail)
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Button {
+                    AppRouter.shared.isQuickAdding = true
+                } label: {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("הוספה מהירה")
             }
-            Spacer(minLength: 0)
-            Button {
-                isDone.toggle()
-            } label: {
-                Image(systemName: isDone ? "checkmark.circle.fill" : "checkmark")
-                    .font(.system(size: 17, weight: .bold))
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("סיימתי")
-        }
-        .padding(.horizontal, 12)
-    }
-}
-
-/// A full-screen placeholder for an area that is built in a later stage.
-struct ComingSoonView: View {
-    let title: String
-    let symbol: String
-    let text: String
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView {
-                Label(title, systemImage: symbol)
-            } description: {
-                Text(text + "\nהמסך הזה נבנה בשלב הבא.")
-            }
-            .background(Theme.ground)
-            .navigationTitle(title)
+            .padding(.horizontal, 12)
+            .id(cityID)
         }
     }
 }

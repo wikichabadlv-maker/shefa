@@ -8,7 +8,7 @@ struct ShefaApp: App {
     static let container: ModelContainer = {
         let schema = Schema([
             LedgerEntry.self, MerchantRule.self, BudgetLine.self, SavingsGoal.self, ListItem.self,
-            CustomSub.self,
+            CustomSub.self, ScheduleItem.self,
         ])
         do {
             return try ModelContainer(for: schema)
@@ -25,12 +25,23 @@ struct ShefaApp: App {
         }
     }()
 
+    @AppStorage("appearance") private var appearance = "system"
+
+    private var scheme: ColorScheme? {
+        switch appearance {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(\.layoutDirection, .rightToLeft)
                 .environment(\.locale, Locale(identifier: "he_IL"))
                 .tint(Theme.accent)
+                .preferredColorScheme(scheme)
         }
         .modelContainer(Self.container)
     }

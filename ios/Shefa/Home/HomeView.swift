@@ -4,16 +4,22 @@ import SwiftUI
 struct HomeView: View {
     @Binding var selection: AppTab
     @Environment(\.modelContext) private var context
-    @Query(sort: \LedgerEntry.date, order: .reverse) private var entries: [LedgerEntry]
-
-    @State private var backend = Backend.shared
+    @Query(filter: #Predicate<LedgerEntry> { !$0.removed }, sort: \LedgerEntry.date, order: .reverse)
+    private var entries: [LedgerEntry]
     @Query(filter: #Predicate<SavingsGoal> { !$0.removed }, sort: \SavingsGoal.createdAt)
     private var goals: [SavingsGoal]
+    @Query(filter: #Predicate<ListItem> { !$0.removed && !$0.isDone && $0.kind == "task" },
+           sort: \ListItem.createdAt, order: .reverse)
+    private var tasks: [ListItem]
+
+    @State private var backend = Backend.shared
+    @State private var router = AppRouter.shared
+    @State private var viewing: LedgerEntry?
 
     private var counted: [LedgerEntry] { Ledger.effective(entries) }
     private var month: MonthSummary { Ledger.summary(counted) }
     private var question: LedgerEntry? { counted.first { $0.needsAnswer } }
-    private var recent: [LedgerEntry] { Array(entries.prefix(3)) }
+    private var recent: [LedgerEntry] { Array(entries.prefix(4)) }
 
     var body: some View {
         NavigationStack {
@@ -26,53 +32,19 @@ struct HomeView: View {
                         .padding(.bottom, -14)
 
                     if !backend.isSignedIn {
-                        NavigationLink {
-                            SettingsView()
-                        } label: {
-                            HStack(spacing: 12) {
-                                ArtworkIcon(artwork: Theme.blue, symbol: "person.crop.circle.badge.checkmark")
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text("מוצגים נתוני דוגמה")
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundStyle(Color.primary)
-                                    Text("התחברו לחשבון המשפחתי כדי לראות את התנועות שלכם")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color.secondary)
-                                        .multilineTextAlignment(.leading)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.forward")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(Color.secondary)
-                            }
-                            .padding(14)
-                            .cardSurface()
-                        }
-                        .buttonStyle(.plain)
+                        signInBanner
                     }
-
                     if backend.isSignedIn, let problem = backend.lastError {
-                        HStack(alignment: .top, spacing: 12) {
-                            ArtworkIcon(artwork: Artwork(0xDC2626, 0x991B1B), symbol: "exclamationmark.triangle.fill")
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("הסנכרון לא הצליח")
-                                    .font(.system(size: 16, weight: .bold))
-                                Text(problem)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.secondary)
-                                Button("ניסיון נוסף") {
-                                    Task { await backend.sync(into: context) }
-                                }
-                                .font(.system(size: 14, weight: .bold))
-                                .padding(.top, 4)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(14)
-                        .cardSurface()
+                        syncProblem(problem)
                     }
 
-                    MonthHeroCard(month: month)
+                    Button {
+                        router.financeSection = .overview
+                        selection = .finance
+                    } label: {
+                        MonthHeroCard(month: month)
+                    }
+                    .buttonStyle(.plain)
 
                     if let question {
                         QuestionCard(entry: question)
@@ -80,32 +52,18 @@ struct HomeView: View {
                             .transition(.opacity)
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        SectionHeader(title: "יעדי חיסכון") { selection = .finance }
-                        ScrollView(.horizontal) {
-                            HStack(spacing: 12) {
-                                ForEach(goals) { goal in
-                                    GoalTile(goal: goal)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-                        .scrollIndicators(.hidden)
-                        .padding(.horizontal, -16)
+                    TodayCard(selection: $selection)
+
+                    insights
+
+                    if !tasks.isEmpty {
+                        tasksPreview
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        SectionHeader(title: "תנועות אחרונות") { selection = .finance }
-                        VStack(spacing: 0) {
-                            ForEach(recent) { item in
-                                TransactionRow(entry: item)
-                                if item.id != recent.last?.id {
-                                    Divider().padding(.leading, 54)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                        .cardSurface()
+                    goalsSection
+
+                    if !recent.isEmpty {
+                        recentSection
                     }
                 }
                 .padding(.horizontal, 16)
@@ -116,21 +74,262 @@ struct HomeView: View {
             .navigationTitle("בית")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("פקודה מהירה", systemImage: "bolt.fill") {}
+                    Button("הוספה מהירה", systemImage: "bolt.fill") { router.isQuickAdding = true }
                 }
+            }
+            .sheet(item: $viewing) { entry in
+                EntryDetailSheet(entry: entry)
             }
         }
     }
 
-    /// For example "יום חמישי · ב׳ בכסלו".
+    private var signInBanner: some View {
+        NavigationLink {
+            SettingsView()
+        } label: {
+            HStack(spacing: 12) {
+                ArtworkIcon(artwork: Theme.blue, symbol: "person.crop.circle.badge.checkmark")
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("התחברות לחשבון המשפחתי")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.primary)
+                    Text("כדי לקבל את תנועות הבנק והאשראי ולשתף הכול בין שני הטלפונים")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color.secondary)
+            }
+            .padding(14)
+            .cardSurface()
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func syncProblem(_ problem: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ArtworkIcon(artwork: Artwork(0xDC2626, 0x991B1B), symbol: "exclamationmark.triangle.fill")
+            VStack(alignment: .leading, spacing: 2) {
+                Text("הסנכרון לא הצליח")
+                    .font(.system(size: 16, weight: .bold))
+                Text(problem)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Button("ניסיון נוסף") {
+                    Task { await backend.sync(into: context) }
+                }
+                .font(.system(size: 14, weight: .bold))
+                .padding(.top, 4)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .cardSurface()
+    }
+
+    @ViewBuilder
+    private var insights: some View {
+        let list = Array(Insights.build(entries: counted, month: .now, summary: month).prefix(5))
+        if !list.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeader(title: "שווה לדעת") {
+                    router.financeSection = .overview
+                    selection = .finance
+                }
+                InsightCarousel(insights: list, entries: counted, month: .now)
+            }
+        }
+    }
+
+    private var tasksPreview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "מטלות פתוחות") { selection = .tasks }
+            VStack(spacing: 0) {
+                ForEach(tasks.prefix(3)) { item in
+                    Button {
+                        withAnimation(.snappy) {
+                            item.isDone = true
+                            item.doneAt = .now
+                            item.updatedAt = .now
+                        }
+                        try? context.save()
+                        SharedSync.shared.changed(in: context)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "circle")
+                                .font(.system(size: 22))
+                                .foregroundStyle(.secondary)
+                            Text(item.title)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .frame(height: 50)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("סימון כבוצע")
+                    if item.id != tasks.prefix(3).last?.id {
+                        Divider().padding(.leading, 34)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .cardSurface()
+            if tasks.count > 3 {
+                Text("ועוד \(tasks.count - 3) מטלות")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+            }
+        }
+    }
+
+    private var goalsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "יעדי חיסכון") {
+                router.financeSection = .savings
+                selection = .finance
+            }
+            if goals.isEmpty {
+                Button {
+                    router.financeSection = .savings
+                    selection = .finance
+                } label: {
+                    HStack(spacing: 12) {
+                        ArtworkIcon(artwork: Theme.emerald, symbol: "target")
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("היעד הראשון שלכם")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(Color.primary)
+                            Text("קרן חירום, דירה, חופשה. קובעים סכום ותאריך ורואים את ההתקדמות.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.secondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .padding(14)
+                    .cardSurface()
+                }
+                .buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 12) {
+                        ForEach(goals) { goal in
+                            Button {
+                                router.financeSection = .savings
+                                selection = .finance
+                            } label: {
+                                GoalTile(goal: goal)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .scrollIndicators(.hidden)
+                .padding(.horizontal, -16)
+            }
+        }
+    }
+
+    private var recentSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "תנועות אחרונות") {
+                router.financeSection = .transactions
+                selection = .finance
+            }
+            VStack(spacing: 0) {
+                ForEach(recent) { item in
+                    Button {
+                        viewing = item
+                    } label: {
+                        TransactionRow(entry: item).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if item.id != recent.last?.id {
+                        Divider().padding(.leading, 54)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .cardSurface()
+        }
+    }
+
+    /// For example "יום חמישי · ב׳ בכסלו · 12 בנובמבר".
     private static var dateLine: String {
-        let weekday = Date.now.formatted(
-            Date.FormatStyle(locale: Locale(identifier: "he_IL")).weekday(.wide))
-        let hebrew = DateFormatter()
-        hebrew.calendar = Calendar(identifier: .hebrew)
-        hebrew.locale = Locale(identifier: "he_IL@numbers=hebr")
-        hebrew.dateFormat = "d בMMMM"
-        return "\(weekday) · \(hebrew.string(from: .now))"
+        let day = Date.now.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide))
+        return "\(HebrewDate.weekday()) · \(HebrewDate.text()) · \(day)"
+    }
+}
+
+/// Today in one card: what is on now and the next times of the day.
+struct TodayCard: View {
+    @Binding var selection: AppTab
+    @Query(filter: #Predicate<ScheduleItem> { !$0.removed }, sort: \ScheduleItem.startMinute)
+    private var items: [ScheduleItem]
+    @AppStorage(City.storageKey) private var cityID = ""
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let now = timeline.date
+            let zmanim = Zmanim(city: City.find(cityID), day: now)
+            let status = NowStatus.make(items: items, now: now)
+            let upcoming = Array(zmanim.list.filter { $0.isMain && $0.date > now }.prefix(3))
+            Button {
+                selection = .schedule
+            } label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        ArtworkIcon(artwork: status.artwork, symbol: status.symbol)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(status.title)
+                                .font(.system(size: 17, weight: .heavy))
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                            Text(status.detail)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.forward")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.secondary)
+                    }
+                    if !upcoming.isEmpty {
+                        HStack(spacing: 8) {
+                            ForEach(upcoming) { zman in
+                                VStack(spacing: 2) {
+                                    Text(zmanim.clock(zman.date))
+                                        .font(.system(size: 16, weight: .heavy))
+                                        .monospacedDigit()
+                                    Text(zman.title)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.7)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 48)
+                                .foregroundStyle(Theme.amberInk)
+                                .background(Theme.amberGround, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                        }
+                    }
+                }
+                .padding(14)
+                .cardSurface()
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 
