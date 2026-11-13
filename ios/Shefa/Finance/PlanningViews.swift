@@ -657,7 +657,8 @@ struct GoalSheet: View {
                                 .font(.system(size: 17, weight: .semibold))
                                 .padding(.horizontal, 18)
                                 .frame(height: 48)
-                                .background(Theme.card, in: Capsule())
+                                // The color of a form's own rows, in both appearances.
+                                .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
                             HStack(spacing: 10) {
                                 moveButton("הפקדה", symbol: "plus", sign: 1, goal: goal)
                                 moveButton("משיכה", symbol: "minus", sign: -1, goal: goal)
