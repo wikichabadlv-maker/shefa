@@ -5,10 +5,11 @@ import SwiftUI
 struct BudgetList: View {
     let entries: [LedgerEntry]
     let month: Date
+    /// The month's totals, to say what the plan leaves without a purpose.
+    var summary: MonthSummary? = nil
     @Environment(\.modelContext) private var context
     @Query private var lines: [BudgetLine]
     @State private var editing: SpendCategory?
-    @State private var amountText = ""
 
     private var categories: [SpendCategory] { SpendCategory.spending }
 
@@ -36,7 +37,7 @@ struct BudgetList: View {
         let total = Ledger.totalBudget(lines)
         let used = categories.reduce(Decimal(0)) { $0 + (spent[$1.id] ?? 0) } + (spent[SpendCategory.unknown.id] ?? 0)
 
-        BudgetHero(used: used, total: total, month: month)
+        BudgetHero(used: used, total: total, month: month, free: free(total))
 
         let ordered = categories.sorted { first, second in
             func rank(_ category: SpendCategory) -> Int {
@@ -63,8 +64,7 @@ struct BudgetList: View {
         VStack(spacing: 0) {
             ForEach(ordered) { category in
                 Button {
-                    let current = limit(category)
-                    amountText = current > 0 ? Money.digits(current) : ""
+                    Feedback.tap()
                     editing = category
                 } label: {
                     row(category, spent: spent[category.id] ?? 0, limit: limit(category))
@@ -78,13 +78,13 @@ struct BudgetList: View {
         }
         .padding(.horizontal, 14)
         .cardSurface()
-        .alert("תקציב חודשי", isPresented: isEditing) {
-            TextField("סכום בשקלים", text: $amountText)
-                .keyboardType(.numberPad)
-            Button("שמירה") { save() }
-            Button("ביטול", role: .cancel) {}
-        } message: {
-            Text(editing?.title ?? "")
+        .sheet(item: $editing) { category in
+            BudgetSheet(category: category, entries: entries, month: month)
+        }
+        .task {
+            guard Launch.screen == "finance-budget-edit" else { return }
+            try? await Task.sleep(for: .seconds(1))
+            editing = SpendCategory.find("food")
         }
 
         Button {
@@ -97,14 +97,10 @@ struct BudgetList: View {
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
 
-        Text("ההצעה היא הממוצע של החודשים האחרונים, בלי הוצאות חד פעמיות. לחיצה על קטגוריה מאפשרת לשנות.")
+        Text("ההצעה היא הממוצע של החודשים האחרונים, בלי הוצאות חד פעמיות. לחיצה על קבוצה פותחת אותה לשינוי, עם חצי השנה האחרונה מול העיניים. הקו הקטן שעל כל פס מראה איפה היום בחודש.")
             .font(.system(size: 13))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 6)
-    }
-
-    private var isEditing: Binding<Bool> {
-        Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })
     }
 
     private func share(_ part: Decimal, of whole: Decimal) -> Double {
@@ -112,18 +108,11 @@ struct BudgetList: View {
         return min(max(NSDecimalNumber(decimal: part / whole).doubleValue, 0), 1)
     }
 
-    private func save() {
-        guard let category = editing else { return }
-        let value = Ledger.amount(from: amountText) ?? 0
-        if let line = lines.first(where: { $0.categoryID == category.id }) {
-            line.limit = value
-            line.updatedAt = .now
-        } else {
-            context.insert(BudgetLine(categoryID: category.id, limit: value))
-        }
-        try? context.save()
-        SharedSync.shared.changed(in: context)
-        editing = nil
+    /// What the month's income leaves after maaser, savings and the whole
+    /// budget; negative when the budget asks for more than there is.
+    private func free(_ total: Decimal) -> Decimal? {
+        guard let summary, total > 0, summary.income > 0, summary.daysLeft > 0 else { return nil }
+        return summary.income - summary.maaserInPlan - summary.saved - total
     }
 
     /// How much of the month has passed, 0...1; 1 for earlier months.
@@ -174,6 +163,20 @@ struct BudgetList: View {
                 if limit > 0 {
                     GrowBar(share: share(spent, of: limit), height: 6,
                             fill: isOver ? Color.red : (isFast(spent, limit) ? Color.orange : category.artwork.start))
+                        .overlay(alignment: .leading) {
+                            // Where today stands in the month: a bar that
+                            // has passed the mark runs ahead of the days.
+                            if monthPassed < 1 {
+                                GeometryReader { proxy in
+                                    Capsule()
+                                        .fill(Color.primary.opacity(0.55))
+                                        .frame(width: 2, height: 12)
+                                        .padding(.leading, max(proxy.size.width * CGFloat(monthPassed) - 1, 0))
+                                        .offset(y: -3)
+                                }
+                                .accessibilityHidden(true)
+                            }
+                        }
                     Text(note(spent: spent, limit: limit))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isOver ? Color.red : (isFast(spent, limit) ? Color.orange : Color.secondary))
@@ -194,6 +197,8 @@ struct BudgetHero: View {
     let used: Decimal
     let total: Decimal
     let month: Date
+    /// What the month's income leaves outside the budget; nil when unknown.
+    var free: Decimal? = nil
 
     private var share: Double {
         guard total > 0 else { return 0 }
@@ -234,6 +239,13 @@ struct BudgetHero: View {
                     .font(.system(size: 13, weight: .medium))
                     .opacity(0.9)
                     .padding(.top, 2)
+                if let free, free != 0 {
+                    Text(free > 0
+                         ? "\(Money.text(free)) מההכנסה עוד בלי ייעוד."
+                         : "התקציב גדול ב־\(Money.text(-free)) ממה שהחודש יכול לשאת.")
+                        .font(.system(size: 13, weight: .bold))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 0)
             if total > 0 {
@@ -335,6 +347,13 @@ struct SavingsList: View {
             ideas
         }
 
+        OccasionFunds(goals: goals, entries: entries) { goal in
+            editing = goal
+        } start: { value in
+            draft = value
+        }
+        .id("occasions")
+
         Color.clear
             .frame(height: 0)
             .sheet(item: $editing) { goal in
@@ -344,9 +363,9 @@ struct SavingsList: View {
                 GoalSheet(goal: nil, draft: value)
             }
             .task {
-                guard Launch.screen == "finance-goal" else { return }
+                guard Launch.screen == "finance-goal" || Launch.screen == "finance-fund" else { return }
                 try? await Task.sleep(for: .seconds(1))
-                editing = goals.first
+                editing = Launch.screen == "finance-fund" ? goals.first { !$0.occasion.isEmpty } : goals.first
             }
     }
 
@@ -492,6 +511,10 @@ struct GoalCard: View {
             let when = deadline.formatted(Date.FormatStyle(locale: Ledger.hebrew).month(.wide).year())
             return "\(Money.text(monthly)) לחודש עד \(when)"
         }
+        if let arrival = goal.arrival {
+            let when = arrival.formatted(Date.FormatStyle(locale: Ledger.hebrew).month(.wide).year())
+            return "בקצב הזה: \(when)"
+        }
         return "נשארו \(Money.text(goal.left))"
     }
 
@@ -541,6 +564,8 @@ struct GoalDraft: Identifiable {
     var palette = 0
     var hasDeadline = false
     var deadline = Calendar.current.date(byAdding: .year, value: 1, to: .now) ?? .now
+    /// The yearly occasion a new fund is opened for.
+    var occasion = ""
 
     init(id: String = UUID().uuidString, title: String = "", targetText: String = "",
          symbol: String = "star.fill", palette: Int = 0) {
@@ -560,6 +585,7 @@ struct GoalDraft: Identifiable {
         palette = goal.palette
         hasDeadline = goal.deadline != nil
         if let date = goal.deadline { deadline = date }
+        occasion = goal.occasion
     }
 }
 
@@ -595,7 +621,28 @@ struct GoalSheet: View {
                             .listRowBackground(Color.clear)
                     }
                     Section {
-                        TextField("סכום בשקלים", text: $moveText)
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(quickAmounts(goal), id: \.self) { value in
+                                    Button {
+                                        move(value, sign: 1, goal: goal)
+                                    } label: {
+                                        Text(Money.text(value, showPlus: true))
+                                            .font(.system(size: 16, weight: .heavy))
+                                            .monospacedDigit()
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 16)
+                                            .frame(height: 44)
+                                            .background(goal.artwork.gradient, in: Capsule())
+                                    }
+                                    .buttonStyle(.pressable)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                        TextField("סכום אחר", text: $moveText)
                             .keyboardType(.numberPad)
                         HStack(spacing: 10) {
                             moveButton("הפקדה", symbol: "plus", sign: 1, goal: goal)
@@ -604,7 +651,25 @@ struct GoalSheet: View {
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                     } header: {
-                        Text("שמנו בצד? משכנו?")
+                        Text("שמנו בצד? הקשה אחת")
+                    } footer: {
+                        Text(paceLine(goal))
+                    }
+
+                    let recent: [(month: String, amount: Decimal)] = Array(goal.deposits.suffix(6).reversed())
+                    if !recent.isEmpty {
+                        Section("מה נכנס, חודש אחרי חודש") {
+                            ForEach(recent, id: \.month) { item in
+                                HStack {
+                                    Text(GoalSheet.monthTitle(item.month))
+                                    Spacer()
+                                    Text(Money.text(item.amount, showPlus: true))
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .monospacedDigit()
+                                        .foregroundStyle(item.amount > 0 ? Theme.accent : Color.primary)
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -662,26 +727,65 @@ struct GoalSheet: View {
         .environment(\.layoutDirection, .rightToLeft)
     }
 
+    /// "2026-11" as "נובמבר 2026".
+    static func monthTitle(_ key: String) -> String {
+        guard let date = DayKey.date(key + "-01") else { return key }
+        return date.formatted(Date.FormatStyle(locale: Ledger.hebrew).month(.wide).year())
+    }
+
+    /// Round amounts for a deposit with one touch, and what the goal asks
+    /// for this month when it has a date.
+    private func quickAmounts(_ goal: SavingsGoal) -> [Decimal] {
+        var result: [Decimal] = [50, 100, 200, 500]
+        if let needed = goal.monthlyNeeded {
+            let rounded: Decimal = Decimal((needed.double / 10).rounded(.up) * 10)
+            if rounded > 0, !result.contains(rounded) { result.insert(rounded, at: 0) }
+        }
+        return result
+    }
+
+    /// What the last months say about when the goal will be reached.
+    private func paceLine(_ goal: SavingsGoal) -> String {
+        guard goal.left > 0 else { return "היעד מלא." }
+        guard let pace = goal.monthlyPace, let arrival = goal.arrival else {
+            return "כל הפקדה נרשמת כאן, וכך אפשר לראות לאן הקצב שלכם מוביל."
+        }
+        let when: String = arrival.formatted(Date.FormatStyle(locale: Ledger.hebrew).month(.wide).year())
+        var text: String = "בחודשים האחרונים שמתם בצד כ־\(Money.text(pace)) בחודש. בקצב הזה תגיעו ליעד ב\(when)."
+        if let deadline = goal.deadline, arrival > deadline, let needed = goal.monthlyNeeded {
+            text += " כדי להגיע בתאריך שקבעתם צריך \(Money.text(needed)) בחודש."
+        }
+        return text
+    }
+
+    /// Puts money into the goal, or takes it out, and writes it in the log.
+    private func move(_ value: Decimal, sign: Int, goal: SavingsGoal) {
+        let next: Decimal = max(goal.saved + (sign > 0 ? value : -value), 0)
+        let change: Decimal = next - goal.saved
+        guard change != 0 else { return }
+        let reaches: Bool = goal.target > 0 && goal.saved < goal.target && next >= goal.target
+        withAnimation(.smooth(duration: 0.7)) {
+            goal.saved = next
+            goal.record(change)
+            goal.updatedAt = .now
+        }
+        draft.savedText = Money.digits(next).replacingOccurrences(of: ",", with: "")
+        moveText = ""
+        try? context.save()
+        SharedSync.shared.changed(in: context)
+        if reaches {
+            Moments.goalReached(goal)
+        } else if sign > 0 {
+            Feedback.done()
+        } else {
+            Feedback.tap()
+        }
+    }
+
     private func moveButton(_ title: String, symbol: String, sign: Int, goal: SavingsGoal) -> some View {
         Button {
             guard let value = Ledger.amount(from: moveText), value > 0 else { return }
-            let next = max(goal.saved + (sign > 0 ? value : -value), 0)
-            let reaches = goal.target > 0 && goal.saved < goal.target && next >= goal.target
-            withAnimation(.smooth(duration: 0.7)) {
-                goal.saved = next
-                goal.updatedAt = .now
-            }
-            draft.savedText = Money.digits(next).replacingOccurrences(of: ",", with: "")
-            moveText = ""
-            try? context.save()
-            SharedSync.shared.changed(in: context)
-            if reaches {
-                Moments.goalReached(goal)
-            } else if sign > 0 {
-                Feedback.done()
-            } else {
-                Feedback.tap()
-            }
+            move(value, sign: sign, goal: goal)
         } label: {
             Label(title, systemImage: symbol)
                 .font(.system(size: 16, weight: .bold))
@@ -701,6 +805,8 @@ struct GoalSheet: View {
             let reaches = goal.saved < goal.target && saved >= target
             goal.title = title
             goal.target = target
+            // A figure corrected by hand is a deposit or a withdrawal too.
+            if saved != goal.saved { goal.record(saved - goal.saved) }
             goal.saved = saved
             goal.symbol = draft.symbol
             goal.palette = draft.palette
@@ -717,6 +823,7 @@ struct GoalSheet: View {
             let created = SavingsGoal(id: draft.id, title: title, saved: saved, target: target,
                                       symbol: draft.symbol, palette: draft.palette)
             created.deadline = draft.hasDeadline ? draft.deadline : nil
+            created.occasion = draft.occasion
             context.insert(created)
         }
         finish()

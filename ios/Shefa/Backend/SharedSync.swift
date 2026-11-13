@@ -56,6 +56,9 @@ final class SharedSync {
     private(set) var lastError: String?
     /// The last time the family database took and gave everything.
     private(set) var lastGood: Date?
+    /// Whether the family database has ever answered on this phone. Until it
+    /// has, nothing here may claim that a list is shared.
+    private(set) var hasWorked = UserDefaults.standard.bool(forKey: "shared.worked")
 
     private init() {}
 
@@ -122,6 +125,10 @@ final class SharedSync {
             }
             lastError = nil
             lastGood = .now
+            if !hasWorked {
+                hasWorked = true
+                UserDefaults.standard.set(true, forKey: "shared.worked")
+            }
         } catch {
             lastError = error.localizedDescription
         }

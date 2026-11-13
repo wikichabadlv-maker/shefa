@@ -96,7 +96,7 @@ struct FinanceView: View {
                         case .transactions:
                             TransactionsList(entries: query.isEmpty ? monthEntries : entries, query: query)
                         case .budget:
-                            BudgetList(entries: counted, month: month)
+                            BudgetList(entries: counted, month: month, summary: summary)
                         case .savings:
                             SavingsList(month: Ledger.summary(counted), entries: counted)
                         case .maaser:
@@ -119,7 +119,7 @@ struct FinanceView: View {
             }
             .background { AmbientGround(artwork: section.artwork) }
             .navigationTitle("פיננסים")
-            .searchable(text: $query, prompt: "חנות או קטגוריה")
+            .searchable(text: $query, prompt: "חנות, קטגוריה, סכום או הערה")
             .onChange(of: query) { _, value in
                 if !value.isEmpty { router.financeSection = .transactions }
             }
@@ -191,21 +191,120 @@ enum LedgerFilter: String, CaseIterable, Identifiable {
 struct TransactionsList: View {
     let entries: [LedgerEntry]
     let query: String
-    @State private var filter: LedgerFilter = .all
+    @State private var filter: LedgerFilter = Launch.anchor == "questions" ? .questions : .all
     @State private var editing: LedgerEntry?
+    @State private var choosing: LedgerEntry?
+    @State private var router = AppRouter.shared
 
     private var questionCount: Int { entries.filter(\.needsAnswer).count }
+
+    /// A search finds a line by its place, its group, its note or its amount.
+    private func matches(_ entry: LedgerEntry, _ text: String) -> Bool {
+        if entry.title.localizedCaseInsensitiveContains(text) { return true }
+        if entry.category?.title.contains(text) ?? false { return true }
+        if entry.subTitle?.contains(text) ?? false { return true }
+        if entry.note?.localizedCaseInsensitiveContains(text) ?? false { return true }
+        let digits: String = text.replacingOccurrences(of: ",", with: "").replacingOccurrences(of: "₪", with: "")
+        guard !digits.isEmpty, digits.allSatisfy({ $0.isNumber || $0 == "." }) else { return false }
+        return Money.digits(entry.amount, fractionDigits: 2).replacingOccurrences(of: ",", with: "").hasPrefix(digits)
+    }
 
     private var shown: [LedgerEntry] {
         let text = query.trimmingCharacters(in: .whitespaces)
         return entries.filter { entry in
-            filter.matches(entry)
-                && (text.isEmpty || entry.title.localizedCaseInsensitiveContains(text)
-                    || (entry.category?.title.contains(text) ?? false))
+            filter.matches(entry) && (text.isEmpty || matches(entry, text))
         }
     }
 
+    /// What came in and what went out, among the lines on the screen.
+    private var totals: some View {
+        var incoming = Decimal(0)
+        var outgoing = Decimal(0)
+        for entry in shown where entry.categoryID != SpendCategory.transferID {
+            if entry.amount > 0 { incoming += entry.amount } else { outgoing -= entry.amount }
+        }
+        let whole: Double = max((incoming + outgoing).double, 1)
+        let incomeShare: Double = incoming.double / whole
+        let cameIn: Decimal = incoming
+        let wentOut: Decimal = outgoing
+        return VStack(spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("נכנסו")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    CountUp(value: cameIn.double) { Money.text(Decimal($0.rounded())) }
+                        .font(.system(size: 20, weight: .heavy))
+                        .monospacedDigit()
+                        .foregroundStyle(Theme.accent)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("יצאו")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    CountUp(value: wentOut.double) { Money.text(Decimal($0.rounded())) }
+                        .font(.system(size: 20, weight: .heavy))
+                        .monospacedDigit()
+                }
+            }
+            GeometryReader { proxy in
+                HStack(spacing: 3) {
+                    Capsule().fill(Theme.green.gradient)
+                        .frame(width: max((proxy.size.width - 3) * incomeShare, 4))
+                    Capsule().fill(Theme.pink.gradient)
+                }
+            }
+            .frame(height: 8)
+            .reveal(.leading, delay: 0.25)
+            .accessibilityHidden(true)
+        }
+        .padding(14)
+        .cardSurface()
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The way into the quick sorting, when lines wait for an answer.
+    private var reviewBanner: some View {
+        Button {
+            Feedback.tap()
+            router.isReviewing = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: 44, height: 44)
+                    .background(.white.opacity(0.22), in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(questionCount == 1 ? "תנועה אחת מחכה לבירור" : "\(questionCount) תנועות מחכות לבירור")
+                        .font(.system(size: 17, weight: .heavy))
+                    Text("בירור מהיר: כרטיס אחד בכל פעם, הקשה אחת")
+                        .font(.system(size: 13, weight: .medium))
+                        .opacity(0.92)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.forward")
+                    .font(.system(size: 14, weight: .bold))
+                    .opacity(0.8)
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .livingCard(Theme.blue, radius: 24, seed: 0.8, isMoving: false)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable)
+    }
+
     var body: some View {
+        if query.isEmpty, !entries.isEmpty {
+            totals
+        }
+        if questionCount > 0, query.isEmpty {
+            reviewBanner
+        }
+
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
                 ForEach(LedgerFilter.allCases) { item in
@@ -244,6 +343,12 @@ struct TransactionsList: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.pressable)
+                        .contextMenu {
+                            Button("פרטי התנועה", systemImage: "info.circle") { editing = item }
+                            Button(item.needsAnswer ? "מה זה היה?" : "שינוי קטגוריה", systemImage: "tag") {
+                                choosing = item
+                            }
+                        }
                         if item.id != day.entries.last?.id {
                             Divider().padding(.leading, 54)
                         }
@@ -255,6 +360,9 @@ struct TransactionsList: View {
         }
         .sheet(item: $editing) { entry in
             EntryDetailSheet(entry: entry)
+        }
+        .sheet(item: $choosing) { entry in
+            CategoryPicker(entry: entry)
         }
         .task {
             guard Launch.screen == "finance-entry" else { return }
@@ -300,9 +408,18 @@ struct TransactionRow: View {
         HStack(spacing: 12) {
             ArtworkIcon(artwork: look.artwork, symbol: look.symbol)
             VStack(alignment: .leading, spacing: 1) {
-                Text(entry.title)
-                    .font(.system(size: 16, weight: .bold))
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(entry.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .lineLimit(1)
+                    if entry.pending {
+                        // Not final at the card company yet.
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("עוד לא סופי")
+                    }
+                }
                 Text(entry.note.map { "\(entry.detail) · \($0)" } ?? entry.detail)
                     .font(.system(size: 13))
                     .foregroundStyle(entry.needsAnswer ? Theme.amberInk : Color.secondary)

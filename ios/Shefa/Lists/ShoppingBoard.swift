@@ -18,7 +18,13 @@ struct ShoppingBoard: View {
            sort: \ListItem.createdAt, order: .reverse)
     private var everything: [ListItem]
 
+    @Query private var budgetLines: [BudgetLine]
+    @Query(filter: #Predicate<LedgerEntry> { !$0.removed }, sort: \LedgerEntry.date, order: .reverse)
+    private var ledger: [LedgerEntry]
+
     @State private var backend = Backend.shared
+    @State private var sync = SharedSync.shared
+    @State private var isBudgeting = false
     @State private var draft = ""
     @State private var isCheckingOut = false
     @State private var totalText = ""
@@ -48,6 +54,61 @@ struct ShoppingBoard: View {
 
     private var shareText: String {
         "רשימת קניות:\n" + open.map { "• " + $0.title }.joined(separator: "\n")
+    }
+
+    /// Whether the list really reaches the other phone, in plain words.
+    private struct Sharing {
+        let title: String
+        let symbol: String
+        let text: String
+    }
+
+    private var sharing: Sharing {
+        if !backend.isSignedIn {
+            return Sharing(title: "במכשיר הזה בלבד", symbol: "iphone",
+                           text: "התחברו בהגדרות, והרשימה תתעדכן אצל שניכם.")
+        }
+        if !sync.hasWorked {
+            return Sharing(title: "שמורה במכשיר הזה", symbol: "iphone",
+                           text: "השיתוף בין המכשירים עוד לא פעיל. הרשימה שמורה כאן, ותעבור לשניכם ברגע שיופעל.")
+        }
+        if sync.lastError != nil {
+            return Sharing(title: "משותפת לבני הבית", symbol: "person.2.fill",
+                           text: "אין חיבור כרגע. מה שתשנו כאן יעבור לשניכם כשהחיבור יחזור.")
+        }
+        return Sharing(title: "משותפת לבני הבית", symbol: "person.2.fill",
+                       text: "כל מה שמוסיפים או מסמנים מופיע מיד אצל שניכם.")
+    }
+
+    /// The food budget, so that the list is written with the month in view.
+    private struct FoodLine {
+        let text: String
+        /// How much of the budget is used; nil when no budget was set.
+        let share: Double?
+        let isOver: Bool
+    }
+
+    private static let foodID = "food"
+
+    private var counted: [LedgerEntry] { Ledger.effective(ledger) }
+
+    private var foodLine: FoodLine? {
+        let spent: Decimal = Ledger.spentByCategory(counted)[ShoppingBoard.foodID] ?? 0
+        let limit: Decimal = budgetLines.first { $0.categoryID == ShoppingBoard.foodID }?.limit ?? 0
+        guard limit > 0 else {
+            if spent <= 0 { return nil }
+            return FoodLine(text: "על מזון ובית יצאו החודש \(Money.text(spent))", share: nil, isOver: false)
+        }
+        let left: Decimal = limit - spent
+        if left < 0 {
+            return FoodLine(text: "מזון ובית עברו את התקציב ב־\(Money.text(-left))", share: 1, isOver: true)
+        }
+        let calendar = Calendar.current
+        let today: Int = calendar.component(.day, from: .now)
+        let length: Int = calendar.range(of: .day, in: .month, for: .now)?.count ?? 30
+        let days: Int = max(1, length - today + 1)
+        return FoodLine(text: "נשארו \(Money.text(left)) למזון ובית, לעוד \(Ledger.daysText(days))",
+                        share: (spent / limit).double, isOver: false)
     }
 
     var body: some View {
@@ -96,6 +157,11 @@ struct ShoppingBoard: View {
         } message: {
             Text("הקנייה תירשם בהוצאות עם רשימת המוצרים שבעגלה, והם יוסרו מהרשימה.")
         }
+        .sheet(isPresented: $isBudgeting) {
+            if let category = SpendCategory.find(ShoppingBoard.foodID) {
+                BudgetSheet(category: category, entries: counted, month: .now)
+            }
+        }
     }
 
     // MARK: Parts
@@ -103,38 +169,77 @@ struct ShoppingBoard: View {
     private var hero: some View {
         let total = items.count
         let share = total > 0 ? Double(inCart.count) / Double(total) : 0
-        return HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Label(backend.isSignedIn ? "משותפת לבני הבית" : "במכשיר הזה בלבד",
-                      systemImage: backend.isSignedIn ? "person.2.fill" : "iphone")
-                    .font(.system(size: 13, weight: .heavy))
-                    .padding(.horizontal, 10)
-                    .frame(height: 26)
-                    .background(.white.opacity(0.2), in: Capsule())
-                Text(headline)
-                    .font(.system(size: 30, weight: .heavy))
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                    .contentTransition(.numericText())
-                Text(backend.isSignedIn
-                     ? "כל מה שמוסיפים או מסמנים מופיע מיד אצל שניכם."
-                     : "התחברו בהגדרות, והרשימה תתעדכן אצל שניכם.")
-                    .font(.system(size: 13, weight: .medium))
-                    .opacity(0.92)
-            }
-            Spacer(minLength: 0)
-            ProgressRing(share: share, lineWidth: 10)
-                .frame(width: 84, height: 84)
-                .overlay {
-                    Image(systemName: total > 0 && open.isEmpty ? "checkmark" : "cart.fill")
-                        .font(.system(size: 26, weight: .heavy))
-                        .contentTransition(.symbolEffect(.replace))
+        let state: Sharing = sharing
+        let food: FoodLine? = foodLine
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Label(state.title, systemImage: state.symbol)
+                        .font(.system(size: 13, weight: .heavy))
+                        .padding(.horizontal, 10)
+                        .frame(height: 26)
+                        .background(.white.opacity(0.2), in: Capsule())
+                    Text(headline)
+                        .font(.system(size: 30, weight: .heavy))
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                        .contentTransition(.numericText())
+                    Text(state.text)
+                        .font(.system(size: 13, weight: .medium))
+                        .opacity(0.92)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                Spacer(minLength: 0)
+                ProgressRing(share: share, lineWidth: 10)
+                    .frame(width: 84, height: 84)
+                    .overlay {
+                        Image(systemName: total > 0 && open.isEmpty ? "checkmark" : "cart.fill")
+                            .font(.system(size: 26, weight: .heavy))
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+            }
+            if let food {
+                Button {
+                    Feedback.tap()
+                    isBudgeting = true
+                } label: {
+                    foodStrip(food)
+                }
+                .buttonStyle(.pressable)
+            }
         }
         .foregroundStyle(.white)
         .padding(20)
         .livingCard(Theme.green, seed: 0.7)
         .accessibilityElement(children: .combine)
+    }
+
+    /// The month's food money, inside the green card: one line and one bar.
+    private func foodStrip(_ food: FoodLine) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            if let share = food.share {
+                GrowBar(share: share, height: 6, track: .white.opacity(0.25), delay: 0.35,
+                        fill: food.isOver ? Color(hex: 0xFDE68A) : Color.white)
+            }
+            HStack(spacing: 6) {
+                Image(systemName: food.isOver ? "exclamationmark.circle.fill" : "banknote.fill")
+                    .font(.system(size: 13, weight: .bold))
+                Text(food.text)
+                    .font(.system(size: 14, weight: .bold))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.forward")
+                    .font(.system(size: 11, weight: .heavy))
+                    .opacity(0.8)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .contentShape(Rectangle())
+        .accessibilityHint("פתיחת התקציב של מזון ובית")
     }
 
     private var headline: String {

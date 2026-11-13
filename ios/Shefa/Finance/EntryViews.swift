@@ -209,6 +209,8 @@ struct EntryDetailSheet: View {
     let entry: LedgerEntry
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Query(filter: #Predicate<LedgerEntry> { !$0.removed }, sort: \LedgerEntry.date, order: .reverse)
+    private var all: [LedgerEntry]
     @State private var isChoosing = false
     @State private var note = ""
     @State private var title = ""
@@ -237,25 +239,110 @@ struct EntryDetailSheet: View {
             : "\(day) · \(HebrewDate.text(entry.date))"
     }
 
+    private var isFromFeed: Bool {
+        !entry.isManual && entry.source != ExcelImport.source && !entry.isSample
+    }
+
+    /// When a card purchase reaches the bank account.
+    private var chargeLine: (label: String, value: String)? {
+        guard isFromFeed, Forecast.isCardLine(entry), entry.amount < 0 else { return nil }
+        let cards: [LedgerEntry] = all.filter { Forecast.isCardLine($0) }
+        let day: Int = Forecast.billingDays(cards)[entry.source] ?? 10
+        let charge: Date = Forecast.chargeDay(of: entry, billingDay: day)
+        let isAhead: Bool = charge > Calendar.current.startOfDay(for: .now)
+        return (isAhead ? "יורד מהבנק" : "ירד מהבנק", "ב־" + Ledger.dayText(charge))
+    }
+
+    /// Whether the feed told anything worth a section of its own.
+    private var hasDetails: Bool {
+        guard isFromFeed else { return false }
+        return chargeLine != nil || entry.paymentsText != nil || !(entry.account ?? "").isEmpty
+            || !(entry.memo ?? "").isEmpty
+    }
+
+    /// For a purchase in payments: what is still to come, and until when.
+    private var paymentsLine: String? {
+        guard let text = entry.paymentsText else { return nil }
+        let after: Int = entry.installments - entry.installment
+        guard after > 0, let last = Calendar.current.date(byAdding: .month, value: after, to: entry.date) else {
+            return text + " · האחרון"
+        }
+        let month: String = last.formatted(Date.FormatStyle(locale: Ledger.hebrew).month(.wide).year())
+        return "\(text) · נשארו \(Money.text(entry.paymentsLeft)), עד \(month)"
+    }
+
+    /// Earlier lines from the same place, the newest first.
+    private var history: [LedgerEntry] {
+        guard entry.source != ExcelImport.source else { return [] }
+        let key: String = Ledger.merchantKey(entry.title)
+        guard !key.isEmpty else { return [] }
+        let isOut: Bool = entry.amount < 0
+        return all.filter {
+            $0.id != entry.id && $0.source != ExcelImport.source && ($0.amount < 0) == isOut
+                && Ledger.merchantKey($0.title) == key
+        }
+    }
+
+    /// The top of the sheet, in the color of the line's group.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: look.symbol)
+                    .font(.system(size: 16, weight: .bold))
+                    .frame(width: 38, height: 38)
+                    .background(.white.opacity(0.2), in: Circle())
+                Text(entry.subTitle ?? entry.category?.title ?? (entry.amount < 0 ? "לבירור" : "הכנסה"))
+                    .font(.system(size: 15, weight: .bold))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                if entry.pending {
+                    Text("עוד לא סופי")
+                        .font(.system(size: 12, weight: .heavy))
+                        .padding(.horizontal, 10)
+                        .frame(height: 24)
+                        .background(.white.opacity(0.22), in: Capsule())
+                }
+            }
+            Text(entry.title)
+                .font(.system(size: 24, weight: .heavy))
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+                .padding(.top, 6)
+            Text(Money.text(entry.amount, fractionDigits: 2, showPlus: true))
+                .font(.system(size: 42, weight: .heavy))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text("\(dateLine) · \(entry.source)")
+                .font(.system(size: 13, weight: .semibold))
+                .opacity(0.9)
+        }
+        .foregroundStyle(.white)
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .livingCard(look.artwork, radius: 24, seed: 0.4, watermark: look.symbol)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// How often the family is at this place, and what it comes to.
+    private func historyLine(_ past: [LedgerEntry]) -> String {
+        let count: Int = past.count + 1
+        var sum: Decimal = entry.amount < 0 ? -entry.amount : entry.amount
+        for item in past {
+            sum += item.amount < 0 ? -item.amount : item.amount
+        }
+        let average: Decimal = sum / Decimal(count)
+        return "\(count) פעמים בסך הכול, \(Money.text(sum)). בממוצע \(Money.text(average)) בכל פעם."
+    }
+
     var body: some View {
+        let past: [LedgerEntry] = history
         NavigationStack {
             Form {
                 Section {
-                    VStack(spacing: 6) {
-                        ArtworkIcon(artwork: look.artwork, symbol: look.symbol, size: 56)
-                        Text(Money.text(entry.amount, fractionDigits: 2, showPlus: true))
-                            .font(.system(size: 40, weight: .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(entry.amount > 0 ? Theme.accent : Color.primary)
-                        Text(entry.title)
-                            .font(.system(size: 17, weight: .bold))
-                            .multilineTextAlignment(.center)
-                        Text("\(dateLine) · \(entry.source)")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
+                    header
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                 }
 
                 Section {
@@ -289,6 +376,49 @@ struct EntryDetailSheet: View {
                 Section("הערה") {
                     TextField("למשל: מתנה ליום הולדת של אמא", text: $note, axis: .vertical)
                         .lineLimit(1...4)
+                }
+
+                if hasDetails {
+                    Section {
+                        if let charge = chargeLine {
+                            LabeledContent(charge.label, value: charge.value)
+                        }
+                        if let payments = paymentsLine {
+                            LabeledContent("תשלומים", value: payments)
+                        }
+                        if let account = entry.account, !account.isEmpty {
+                            LabeledContent(Forecast.isCardLine(entry) ? "כרטיס" : "חשבון",
+                                           value: "\(entry.source) · \(account)")
+                        }
+                        if let memo = entry.memo, !memo.isEmpty {
+                            LabeledContent("כתוב בדף החשבון", value: memo)
+                        }
+                    } header: {
+                        Text("פרטים")
+                    } footer: {
+                        if entry.pending {
+                            Text("התנועה עוד לא סופית אצל חברת האשראי, והסכום עשוי להשתנות מעט.")
+                        }
+                    }
+                }
+
+                if !past.isEmpty {
+                    Section {
+                        ForEach(past.prefix(4)) { item in
+                            HStack {
+                                Text(item.date.formatted(Date.FormatStyle(locale: Ledger.hebrew).day().month(.wide).year()))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(Money.text(item.amount, fractionDigits: 2, showPlus: true))
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .monospacedDigit()
+                            }
+                        }
+                    } header: {
+                        Text("אותו מקום, בעבר")
+                    } footer: {
+                        Text(historyLine(past))
+                    }
                 }
 
                 if entry.isManual {
@@ -339,6 +469,7 @@ struct EntryDetailSheet: View {
                 date = entry.date
             }
         }
+        .arrives()
         .environment(\.layoutDirection, .rightToLeft)
         .presentationDetents([.large])
     }
